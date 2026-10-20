@@ -722,9 +722,13 @@ struct TeleprompterSettings: View {
         .onAppear {
             inputDevices = AudioInputDevice.allInputDevices()
             openRequestedNewPageIfNeeded()
+            openRequestedEditPageIfNeeded()
         }
         .onChange(of: service.pendingAddPageInSettings) { _, requested in
             if requested { openRequestedNewPageIfNeeded() }
+        }
+        .onChange(of: service.pendingEditPageIndexInSettings) { _, index in
+            if index != nil { openRequestedEditPageIfNeeded() }
         }
         .confirmationDialog(
             "Delete Page \((pageToDelete ?? 0) + 1)?",
@@ -878,6 +882,15 @@ struct TeleprompterSettings: View {
         // Let Settings become the key window before presenting its page editor sheet.
         DispatchQueue.main.async {
             addNewPage()
+        }
+    }
+
+    private func openRequestedEditPageIfNeeded() {
+        guard let index = service.pendingEditPageIndexInSettings else { return }
+        service.pendingEditPageIndexInSettings = nil
+        // Present from the Settings window after it becomes key, as for Add Page.
+        DispatchQueue.main.async {
+            openPageEditor(index: index)
         }
     }
 

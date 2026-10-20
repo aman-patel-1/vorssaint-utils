@@ -23,6 +23,7 @@ final class TeleprompterService: ObservableObject {
     @Published var currentPageIndex: Int = 0
     @Published var readPages: Set<Int> = []
     @Published var pendingAddPageInSettings = false
+    @Published var pendingEditPageIndexInSettings: Int?
 
     @Published var guidanceMode: GuidanceMode = .wordTracking {
         didSet {

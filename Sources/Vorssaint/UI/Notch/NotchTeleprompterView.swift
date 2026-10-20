@@ -431,31 +431,12 @@ struct NotchTeleprompterView: View {
     }
 
     private func openEditor(for index: Int) {
-        if service.pages.isEmpty {
-            service.pages = [service.text]
-        }
-        guard index < service.pages.count else { return }
-        let currentText = service.pages[index]
-
-        PageEditorWindowController.shared.show(
-            pageIndex: index,
-            initialText: currentText,
-            service: service,
-            dictation: service.dictationManager,
-            onCancel: { },
-            onDone: { newText in
-                if service.pages.isEmpty {
-                    service.text = newText
-                    service.pages = [newText]
-                } else if index < service.pages.count {
-                    service.pages[index] = newText
-                    if index == service.currentPageIndex {
-                        service.text = newText
-                    }
-                }
-                service.savePreferences()
-            }
-        )
+        guard index < pagesList.count else { return }
+        NotchService.shared.collapse()
+        service.pendingEditPageIndexInSettings = index
+        SettingsRouter.shared.request(AppFeature.teleprompter.settingsDestination)
+        (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
+        triggerHaptic()
     }
 
     private func addNewPage() {
