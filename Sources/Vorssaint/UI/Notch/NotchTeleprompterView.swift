@@ -65,6 +65,7 @@ struct NotchTeleprompterView: View {
             HStack(spacing: 6) {
                 if showsPrompterSurface && service.showElapsedTime { elapsedTimeBadge }
                 if (!showsPrompterSurface || showingPageCards) && !service.isPreviewingInNotch { addPageButton }
+                if !service.isRunning && !service.isPreviewingInNotch { teleprompterSettingsButton }
             }
         })
     }
@@ -411,6 +412,17 @@ struct NotchTeleprompterView: View {
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: NotchLayout.timerStartHeight / 2))
         .help("Add New Page")
+    }
+
+    private var teleprompterSettingsButton: some View {
+        NotchIconButton(symbol: "gearshape", title: "Teleprompter Settings", action: openTeleprompterSettings)
+    }
+
+    private func openTeleprompterSettings() {
+        NotchService.shared.collapse()
+        SettingsRouter.shared.request(AppFeature.teleprompter.settingsDestination)
+        (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
+        triggerHaptic()
     }
 
     /// The elapsed reading takes the page action's top-row position while
