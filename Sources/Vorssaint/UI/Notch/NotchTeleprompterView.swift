@@ -30,11 +30,12 @@ struct NotchTeleprompterView: View {
             if service.isRunning { resizeHandle }
         }
         .frame(width: size.width, height: size.height, alignment: .top)
-        .notchBand(trailing: {
+        .notchBand(leading: {
+            NotchIconButton(symbol: "arrow.uturn.backward", title: l10n.s.obBack, action: NotchService.shared.toggleSections)
+        }, trailing: {
             HStack(spacing: 6) {
                 if service.isRunning && service.showElapsedTime { elapsedTimeBadge }
                 if !service.isRunning || showingPageCards { addPageButton }
-                NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: NotchService.shared.toggleSections)
             }
         })
     }

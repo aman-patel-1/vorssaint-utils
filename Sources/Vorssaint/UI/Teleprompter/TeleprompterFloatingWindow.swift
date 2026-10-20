@@ -10,8 +10,9 @@ final class TeleprompterPanel: NSPanel {
     }
 }
 
-final class TeleprompterFloatingWindowController: NSWindowController {
+final class TeleprompterFloatingWindowController: NSWindowController, NSWindowDelegate {
     static let shared = TeleprompterFloatingWindowController()
+    private var hasPlacedFloatingWindow = false
 
     convenience init() {
         let panel = TeleprompterPanel(
@@ -30,35 +31,49 @@ final class TeleprompterFloatingWindowController: NSWindowController {
         panel.sharingType = .none
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.minSize = NSSize(width: 280, height: 140)
+        panel.standardWindowButton(.closeButton)?.isHidden = true
 
         panel.contentView = NSHostingView(rootView: TeleprompterFloatingContentView())
 
         self.init(window: panel)
+        panel.delegate = self
     }
 
     func show(screen: NSScreen? = nil) {
         guard let panel = window as? NSPanel else { return }
         let targetScreen = screen ?? NSScreen.main ?? NSScreen.screens.first
-        let w = CGFloat(TeleprompterService.shared.windowWidth)
-        let h = CGFloat(TeleprompterService.shared.windowHeight)
-        if let frame = targetScreen?.visibleFrame {
-            let currentX = panel.frame.origin.x
-            let currentY = panel.frame.origin.y
-            let x = currentX > 0 ? currentX : frame.midX - w / 2
-            let y = currentY > 0 ? currentY : frame.midY - h / 2
-            panel.setFrame(NSRect(x: x, y: y, width: w, height: h), display: true)
+        if let visibleFrame = targetScreen?.visibleFrame {
+            let width = min(max(panel.minSize.width, CGFloat(TeleprompterService.shared.windowWidth)), visibleFrame.width)
+            let height = min(max(panel.minSize.height, CGFloat(TeleprompterService.shared.windowHeight)), visibleFrame.height)
+            let priorFrame = panel.frame
+            let priorCenter = NSPoint(x: priorFrame.midX, y: priorFrame.midY)
+            let canRestorePosition = hasPlacedFloatingWindow && visibleFrame.contains(priorCenter)
+            let x = canRestorePosition
+                ? min(max(priorFrame.minX, visibleFrame.minX), visibleFrame.maxX - width)
+                : visibleFrame.midX - width / 2
+            let y = canRestorePosition
+                ? min(max(priorFrame.minY, visibleFrame.minY), visibleFrame.maxY - height)
+                : visibleFrame.midY - height / 2
+            panel.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
         }
+        hasPlacedFloatingWindow = true
         panel.sharingType = TeleprompterService.shared.hideFromScreenShare ? .none : .readOnly
         panel.level = .floating
         panel.orderFrontRegardless()
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        if TeleprompterService.shared.isRunning {
+            TeleprompterService.shared.stop()
+        }
     }
 
     func showAtNotch(screen: NSScreen? = nil) {
         guard let panel = window as? NSPanel else { return }
         let targetScreen = screen ?? NSScreen.main ?? NSScreen.screens.first
         if let frame = targetScreen?.frame {
-            let width: CGFloat = max(460, CGFloat(TeleprompterService.shared.windowWidth))
-            let height: CGFloat = max(200, CGFloat(TeleprompterService.shared.windowHeight))
+            let width = min(max(460, CGFloat(TeleprompterService.shared.windowWidth)), frame.width)
+            let height = min(max(200, CGFloat(TeleprompterService.shared.windowHeight)), frame.height)
             let x = frame.midX - width / 2
             let y = frame.maxY - height - 8
             panel.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
@@ -71,14 +86,20 @@ final class TeleprompterFloatingWindowController: NSWindowController {
     func updateFrame() {
         guard let panel = window as? NSPanel, panel.isVisible else { return }
         guard TeleprompterService.shared.overlayMode == .floating else { return }
-        let w = CGFloat(TeleprompterService.shared.windowWidth)
-        let h = CGFloat(TeleprompterService.shared.windowHeight)
+        let currentFrame = panel.frame
+        let center = NSPoint(x: currentFrame.midX, y: currentFrame.midY)
+        let targetScreen = NSScreen.screens.first(where: { $0.frame.contains(center) }) ?? NSScreen.main
+        guard let visibleFrame = targetScreen?.visibleFrame else { return }
+        let w = min(max(panel.minSize.width, CGFloat(TeleprompterService.shared.windowWidth)), visibleFrame.width)
+        let h = min(max(panel.minSize.height, CGFloat(TeleprompterService.shared.windowHeight)), visibleFrame.height)
         var frame = panel.frame
         let dw = w - frame.size.width
         let dh = h - frame.size.height
         frame.origin.x -= dw / 2
         frame.origin.y -= dh / 2
         frame.size = NSSize(width: w, height: h)
+        frame.origin.x = min(max(frame.origin.x, visibleFrame.minX), visibleFrame.maxX - w)
+        frame.origin.y = min(max(frame.origin.y, visibleFrame.minY), visibleFrame.maxY - h)
         panel.setFrame(frame, display: true, animate: true)
     }
 
@@ -91,77 +112,16 @@ struct TeleprompterFloatingContentView: View {
     @ObservedObject private var service = TeleprompterService.shared
     @ObservedObject private var recognizer = TeleprompterService.shared.speechRecognizer
 
+    private var pageCount: Int { max(1, service.pages.count) }
+
     var body: some View {
         ZStack {
-            // Frosted glass background
             VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
                 .opacity(max(0.2, 1.0 - service.overlayTransparency))
-                .cornerRadius(18)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
-                )
 
             VStack(spacing: 8) {
-                // Top control bar
-                HStack(spacing: 8) {
-                    Button {
-                        service.toggle()
-                    } label: {
-                        Image(systemName: service.isRunning && !service.isPaused ? "pause.fill" : "play.fill")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 24, height: 24)
-                            .background(Color.white.opacity(0.18))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
+                header
 
-                    Text(service.guidanceMode.label)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.7))
-
-                    if service.showElapsedTime && service.isRunning {
-                        HStack(spacing: 3) {
-                            Image(systemName: "stopwatch")
-                                .font(.system(size: 9))
-                            Text(service.formattedElapsedTime)
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        }
-                        .foregroundStyle(.white.opacity(0.85))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.white.opacity(0.12), in: Capsule())
-                    }
-
-                    Spacer()
-
-                    // Mini live waveform
-                    if service.isRunning && !service.isPaused {
-                        HStack(spacing: 1.5) {
-                            ForEach(recognizer.audioLevels.suffix(20).indices, id: \.self) { idx in
-                                let lvl = recognizer.audioLevels[idx]
-                                RoundedRectangle(cornerRadius: 1)
-                                    .fill(service.highlightColor.color)
-                                    .frame(width: 2, height: max(2, lvl * 14))
-                            }
-                        }
-                        .frame(height: 14)
-                    }
-
-                    Button { service.stop() } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.6))
-                            .frame(width: 20, height: 20)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Close")
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 10)
-
-                // Live speech scroll content
                 SpeechScrollView(
                     words: service.currentWords,
                     highlightedCharCount: recognizer.recognizedCharCount,
@@ -180,18 +140,174 @@ struct TeleprompterFloatingContentView: View {
                     readingPosition: service.readingPosition,
                     showLastSpokenWords: service.showLastSpokenWords
                 )
-                .padding(.horizontal, 14)
-                .padding(.bottom, 10)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 2)
+
+                footer
             }
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 10)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea()
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+                .allowsHitTesting(false)
+        )
         .onChange(of: service.windowWidth) { _, _ in
             TeleprompterFloatingWindowController.shared.updateFrame()
         }
         .onChange(of: service.windowHeight) { _, _ in
             TeleprompterFloatingWindowController.shared.updateFrame()
         }
+    }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "text.alignleft")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(service.highlightColor.color)
+                .frame(width: 26, height: 26)
+                .background(service.highlightColor.color.opacity(0.16), in: RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Teleprompter")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.95))
+                Text(statusText)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+            }
+
+            if pageCount > 1 {
+                Text("\(service.currentPageIndex + 1) / \(pageCount)")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.75))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.1), in: Capsule())
+                    .accessibilityLabel("Page \(service.currentPageIndex + 1) of \(pageCount)")
+            }
+
+            Spacer(minLength: 4)
+
+            if service.showElapsedTime && service.isRunning {
+                HStack(spacing: 4) {
+                    Image(systemName: "stopwatch")
+                        .font(.system(size: 10, weight: .medium))
+                    Text(service.formattedElapsedTime)
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .monospacedDigit()
+                }
+                .foregroundStyle(service.highlightColor.color)
+                .padding(.horizontal, 8)
+                .frame(height: 26)
+                .background(service.highlightColor.color.opacity(0.14), in: Capsule())
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Elapsed time")
+                .accessibilityValue(service.formattedElapsedTime)
+            }
+        }
+        .frame(minHeight: 28)
+    }
+
+    private var footer: some View {
+        HStack(spacing: 8) {
+            if service.isRunning && !service.isPaused && recognizer.isListening {
+                liveWaveform
+            } else {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(service.isPaused ? Color.orange : service.highlightColor.color)
+                        .frame(width: 6, height: 6)
+                    Text(service.isPaused ? "Paused" : service.guidanceMode.label)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.65))
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 4)
+
+            if pageCount > 1 {
+                Button {
+                    service.previousPage()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 10, weight: .bold))
+                        .frame(width: 28, height: 28)
+                        .background(Color.white.opacity(0.1), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(service.currentPageIndex == 0)
+                .help("Previous page")
+                .accessibilityLabel("Previous page")
+
+                Button {
+                    service.nextPage()
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .bold))
+                        .frame(width: 28, height: 28)
+                        .background(Color.white.opacity(0.1), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(service.currentPageIndex >= pageCount - 1)
+                .help("Next page")
+                .accessibilityLabel("Next page")
+            }
+
+            Button {
+                service.toggle()
+            } label: {
+                Image(systemName: service.isPaused ? "play.fill" : "pause.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.black)
+                    .frame(width: 30, height: 30)
+                    .background(service.highlightColor.color, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .help(service.isPaused ? "Resume teleprompter" : "Pause teleprompter")
+            .accessibilityLabel(service.isPaused ? "Resume teleprompter" : "Pause teleprompter")
+
+            Button {
+                service.stop()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .frame(width: 30, height: 30)
+                    .background(Color.red.opacity(0.24), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Stop and close teleprompter")
+            .accessibilityLabel("Stop and close teleprompter")
+        }
+        .frame(minHeight: 30)
+    }
+
+    private var liveWaveform: some View {
+        let levels = Array(recognizer.audioLevels.suffix(20))
+        return HStack(spacing: 2) {
+            ForEach(levels.indices, id: \.self) { index in
+                let level = pow(levels[index], 0.6)
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(service.highlightColor.color.opacity(0.9))
+                    .frame(width: 2, height: max(3, level * 16))
+            }
+        }
+        .frame(height: 18)
+        .accessibilityLabel("Listening")
+    }
+
+    private var statusText: String {
+        if service.isPaused { return "Paused" }
+        if recognizer.isListening { return "Listening" }
+        return service.guidanceMode.label
     }
 }
 
