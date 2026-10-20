@@ -1352,6 +1352,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .music: return NotchSupport.modules(in: defaults).contains(.music)
         case .timer: return NotchSupport.modules(in: defaults).contains(.timer)
         case .calendar: return NotchSupport.modules(in: defaults).contains(.calendar)
+        case .teleprompter: return AppFeature.teleprompter.isAvailable(in: defaults)
         }
     }
 }
@@ -2771,7 +2772,8 @@ struct NotchGeometry: Equatable {
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             case .teleprompter:
-                let prompterHeight = CGFloat(TeleprompterService.shared.windowHeight)
+                let h = UserDefaults.standard.double(forKey: DefaultsKey.teleprompterHeight)
+                let prompterHeight = h > 0 ? CGFloat(h) : 220.0
                 contentHeight = max(budget, prompterHeight)
             // Lists and previews fill the chosen content budget.
             case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch:
@@ -2780,7 +2782,9 @@ struct NotchGeometry: Equatable {
         }
         var preferredHeight = headerTopInset + headerChromeHeight + contentHeight
         if module == .teleprompter {
-            preferredHeight = max(preferredHeight, headerTopInset + headerChromeHeight + CGFloat(TeleprompterService.shared.windowHeight))
+            let h = UserDefaults.standard.double(forKey: DefaultsKey.teleprompterHeight)
+            let prompterHeight = h > 0 ? CGFloat(h) : 220.0
+            preferredHeight = max(preferredHeight, headerTopInset + headerChromeHeight + prompterHeight)
         } else if layout == .custom {
             preferredHeight = min(preferredHeight, customHeight)
         }

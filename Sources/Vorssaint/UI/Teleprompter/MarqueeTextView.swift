@@ -87,9 +87,8 @@ struct SpeechScrollView: View {
 
     private var readingAnchorRatio: CGFloat {
         switch readingPosition {
-        case .top: return 0.25
+        case .nearTop: return 0.25
         case .centered: return 0.45
-        case .bottom: return 0.70
         }
     }
 
@@ -438,12 +437,9 @@ struct WordFlowLayout: View {
                 ? highlightColor.opacity(0.85)
                 : highlightColor.opacity(0.35)
 
-            let wordColor: Color
-            if isFullyLit {
-                wordColor = showLastSpokenWords ? highlightColor.opacity(0.4) : highlightColor.opacity(0.06)
-            } else {
-                wordColor = dimColor
-            }
+            let wordColor: Color = isFullyLit
+                ? (showLastSpokenWords ? highlightColor.opacity(0.4) : highlightColor.opacity(0.06))
+                : dimColor
 
             Text(item.word + " ")
                 .font(Font(font))
