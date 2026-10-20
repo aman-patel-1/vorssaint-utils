@@ -341,19 +341,15 @@ struct TeleprompterSettings: View {
                     Spacer()
 
                     Button {
-                        if service.overlayMode == .floating {
-                            service.start()
-                        } else {
-                            NotchService.shared.open(.teleprompter)
-                        }
+                        service.openPrompter()
                         triggerHaptic()
                     } label: {
-                        Label(service.overlayMode == .floating ? "Start Floating Prompter" : "Open Prompter",
+                        Label("Open Prompter",
                               systemImage: service.overlayMode == .floating ? "macwindow" : "arrow.up.forward.square")
                     }
                     .buttonStyle(.borderedProminent)
                     .help(service.overlayMode == .floating
-                          ? "Start reading in the floating prompter window."
+                          ? "Open the floating prompter. Start reading from its play button when ready."
                           : "Open the Notch menu to choose a page and control the prompter.")
                 }
                 .padding(.top, 4)

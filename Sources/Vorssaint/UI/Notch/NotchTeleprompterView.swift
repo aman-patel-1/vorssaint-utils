@@ -264,7 +264,7 @@ struct NotchTeleprompterView: View {
                     liveWaveform
                 }
 
-                if service.autoNextPage && pagesList.count > 1 {
+                if service.isRunning && service.autoNextPage && pagesList.count > 1 {
                     Button {
                         service.previousPage()
                     } label: {

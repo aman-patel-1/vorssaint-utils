@@ -438,6 +438,28 @@ final class TeleprompterService: ObservableObject {
 
     // MARK: - Playback Control
 
+    /// Open the selected prompter surface without starting a reading session.
+    /// In floating mode, playback starts only when the user presses Play in
+    /// the window.
+    func openPrompter() {
+        if overlayMode == .floating {
+            NotchService.shared.collapse()
+            floatingWindowVisible = true
+            TeleprompterFloatingWindowController.shared.show()
+        } else {
+            NotchService.shared.open(.teleprompter)
+        }
+    }
+
+    func closeFloatingWindow() {
+        if isRunning {
+            stop()
+        } else {
+            floatingWindowVisible = false
+            TeleprompterFloatingWindowController.shared.hide()
+        }
+    }
+
     func toggle() {
         if isRunning {
             if isPaused {

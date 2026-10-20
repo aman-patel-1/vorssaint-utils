@@ -213,7 +213,7 @@ struct TeleprompterFloatingContentView: View {
                     Circle()
                         .fill(service.isPaused ? Color.orange : service.highlightColor.color)
                         .frame(width: 6, height: 6)
-                    Text(service.isPaused ? "Paused" : service.guidanceMode.label)
+                    Text(!service.isRunning ? "Ready" : service.isPaused ? "Paused" : service.guidanceMode.label)
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(.white.opacity(0.65))
                         .lineLimit(1)
@@ -222,7 +222,7 @@ struct TeleprompterFloatingContentView: View {
 
             Spacer(minLength: 4)
 
-            if service.autoNextPage && pageCount > 1 {
+            if service.isRunning && service.autoNextPage && pageCount > 1 {
                 Button {
                     service.previousPage()
                 } label: {
@@ -253,18 +253,18 @@ struct TeleprompterFloatingContentView: View {
             Button {
                 service.toggle()
             } label: {
-                Image(systemName: service.isPaused ? "play.fill" : "pause.fill")
+                Image(systemName: !service.isRunning || service.isPaused ? "play.fill" : "pause.fill")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.black)
                     .frame(width: 30, height: 30)
                     .background(service.highlightColor.color, in: Circle())
             }
             .buttonStyle(.plain)
-            .help(service.isPaused ? "Resume teleprompter" : "Pause teleprompter")
-            .accessibilityLabel(service.isPaused ? "Resume teleprompter" : "Pause teleprompter")
+            .help(!service.isRunning ? "Start teleprompter" : service.isPaused ? "Resume teleprompter" : "Pause teleprompter")
+            .accessibilityLabel(!service.isRunning ? "Start teleprompter" : service.isPaused ? "Resume teleprompter" : "Pause teleprompter")
 
             Button {
-                service.stop()
+                service.closeFloatingWindow()
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 10, weight: .bold))
@@ -273,8 +273,8 @@ struct TeleprompterFloatingContentView: View {
                     .background(Color.red.opacity(0.24), in: Circle())
             }
             .buttonStyle(.plain)
-            .help("Stop and close teleprompter")
-            .accessibilityLabel("Stop and close teleprompter")
+            .help(service.isRunning ? "Stop and close teleprompter" : "Close teleprompter")
+            .accessibilityLabel(service.isRunning ? "Stop and close teleprompter" : "Close teleprompter")
         }
         .frame(minHeight: 30)
     }
@@ -294,6 +294,7 @@ struct TeleprompterFloatingContentView: View {
     }
 
     private var statusText: String {
+        if !service.isRunning { return "Ready" }
         if service.isPaused { return "Paused" }
         if recognizer.isListening { return "Listening" }
         return service.guidanceMode.label
