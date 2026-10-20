@@ -70,11 +70,15 @@ private struct TeleprompterPlacementPreview: View {
     let height: Double
 
     private var sampleWidth: CGFloat {
-        CGFloat(min(360, max(240, 240 + (width - 320) * 0.15)))
+        let range = TeleprompterService.windowWidthRange(for: mode)
+        let progress = (width - range.lowerBound) / max(1, range.upperBound - range.lowerBound)
+        return CGFloat(240 + min(1, max(0, progress)) * 120)
     }
 
     private var sampleHeight: CGFloat {
-        CGFloat(min(82, max(58, 58 + (height - 160) * 0.04)))
+        let range = TeleprompterService.windowHeightRange(for: mode)
+        let progress = (height - range.lowerBound) / max(1, range.upperBound - range.lowerBound)
+        return CGFloat(58 + min(1, max(0, progress)) * 24)
     }
 
     var body: some View {
@@ -486,6 +490,12 @@ struct TeleprompterSettings: View {
 
             // MARK: - 3. Appearance Section
             Section {
+                Text(service.overlayMode == .notch
+                     ? "Text and cue styling for the Dynamic Island surface."
+                     : "Text, cue, and translucency styling for the floating window.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 Picker("Font Family", selection: $service.fontFamily) {
                     ForEach(TeleprompterFontFamilyPreset.allCases) { family in
                         Text(family.label).tag(family)
@@ -544,6 +554,12 @@ struct TeleprompterSettings: View {
 
             // MARK: - 4. Guidance Section
             Section {
+                Text(service.overlayMode == .notch
+                     ? "Speech tracking and scroll behavior for the Dynamic Island surface."
+                     : "Speech tracking and scroll behavior for the floating window.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 HStack {
                     HStack(spacing: 4) {
                         Text("Tracking Mode")
@@ -600,6 +616,12 @@ struct TeleprompterSettings: View {
 
             // MARK: - 5. Reading Section
             Section {
+                Text(service.overlayMode == .notch
+                     ? "Reading aids saved for the Dynamic Island placement."
+                     : "Reading aids saved for the floating window placement.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 HStack {
                     HStack(spacing: 4) {
                         Text("Reading Position")
@@ -661,8 +683,9 @@ struct TeleprompterSettings: View {
                 HStack(spacing: 12) {
                     Text(service.overlayMode == .floating ? "Window Width" : "Notch Width")
                         .frame(width: 110, alignment: .leading)
-                    Slider(value: $service.windowWidth, in: TeleprompterService.windowWidthRange, step: 20)
-                        .help("320–1000 points, limited by the selected display's available width.")
+                    Slider(value: $service.windowWidth,
+                           in: TeleprompterService.windowWidthRange(for: service.overlayMode), step: 20)
+                        .help("\(Int(TeleprompterService.windowWidthRange(for: service.overlayMode).lowerBound))–\(Int(TeleprompterService.windowWidthRange(for: service.overlayMode).upperBound)) points, limited by the selected display's available width.")
                         .onChange(of: service.windowWidth) { _, _ in
                             triggerHaptic()
                             service.savePreferences()
@@ -676,8 +699,9 @@ struct TeleprompterSettings: View {
                 HStack(spacing: 12) {
                     Text(service.overlayMode == .floating ? "Window Height" : "Notch Height")
                         .frame(width: 110, alignment: .leading)
-                    Slider(value: $service.windowHeight, in: TeleprompterService.windowHeightRange, step: 20)
-                        .help("160–800 points, limited by the selected display's available height.")
+                    Slider(value: $service.windowHeight,
+                           in: TeleprompterService.windowHeightRange(for: service.overlayMode), step: 20)
+                        .help("\(Int(TeleprompterService.windowHeightRange(for: service.overlayMode).lowerBound))–\(Int(TeleprompterService.windowHeightRange(for: service.overlayMode).upperBound)) points, limited by the selected display's available height.")
                         .onChange(of: service.windowHeight) { _, _ in
                             triggerHaptic()
                             service.savePreferences()
@@ -688,18 +712,20 @@ struct TeleprompterSettings: View {
                         .frame(width: 50, alignment: .trailing)
                 }
 
-                HStack(spacing: 12) {
-                    Text("Transparency")
-                        .frame(width: 110, alignment: .leading)
-                    Slider(value: $service.overlayTransparency, in: 0.0...0.5, step: 0.05)
-                        .onChange(of: service.overlayTransparency) { _, _ in
-                            triggerHaptic()
-                            service.savePreferences()
-                        }
-                    Text("\(Int(service.overlayTransparency * 100))%")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 50, alignment: .trailing)
+                if service.overlayMode == .floating {
+                    HStack(spacing: 12) {
+                        Text("Transparency")
+                            .frame(width: 110, alignment: .leading)
+                        Slider(value: $service.overlayTransparency, in: 0.0...0.5, step: 0.05)
+                            .onChange(of: service.overlayTransparency) { _, _ in
+                                triggerHaptic()
+                                service.savePreferences()
+                            }
+                        Text("\(Int(service.overlayTransparency * 100))%")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 50, alignment: .trailing)
+                    }
                 }
 
                 Toggle("Show elapsed time", isOn: $service.showElapsedTime)
@@ -715,7 +741,7 @@ struct TeleprompterSettings: View {
                     .onChange(of: service.hideFromScreenShare) { _, _ in service.savePreferences() }
                 }
             } header: {
-                Text("Teleprompter Window & Display")
+                Text(service.overlayMode == .floating ? "Floating Window" : "Dynamic Island")
             }
             .disabled(!teleprompterEnabled)
 

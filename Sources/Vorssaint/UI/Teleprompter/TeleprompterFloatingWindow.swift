@@ -30,8 +30,8 @@ final class TeleprompterFloatingWindowController: NSWindowController, NSWindowDe
         panel.hasShadow = true
         panel.sharingType = .none
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.minSize = NSSize(width: CGFloat(TeleprompterService.windowWidthRange.lowerBound),
-                               height: CGFloat(TeleprompterService.windowHeightRange.lowerBound))
+        panel.minSize = NSSize(width: CGFloat(TeleprompterService.floatingWindowWidthRange.lowerBound),
+                               height: CGFloat(TeleprompterService.floatingWindowHeightRange.lowerBound))
         panel.standardWindowButton(.closeButton)?.isHidden = true
 
         panel.contentView = NSHostingView(rootView: TeleprompterFloatingContentView())

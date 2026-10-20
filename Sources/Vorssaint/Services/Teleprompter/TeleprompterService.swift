@@ -12,8 +12,18 @@ import SwiftUI
 final class TeleprompterService: ObservableObject {
     static let shared = TeleprompterService()
     static let scrollSpeedRange = 0.25...3.0
-    static let windowWidthRange = 320.0...1000.0
-    static let windowHeightRange = 160.0...800.0
+    static let notchWindowWidthRange = 420.0...1000.0
+    static let floatingWindowWidthRange = 320.0...1000.0
+    static let notchWindowHeightRange = 220.0...640.0
+    static let floatingWindowHeightRange = 180.0...800.0
+
+    static func windowWidthRange(for mode: TeleprompterOverlayMode) -> ClosedRange<Double> {
+        mode == .notch ? notchWindowWidthRange : floatingWindowWidthRange
+    }
+
+    static func windowHeightRange(for mode: TeleprompterOverlayMode) -> ClosedRange<Double> {
+        mode == .notch ? notchWindowHeightRange : floatingWindowHeightRange
+    }
 
     @Published var isRunning: Bool = false {
         didSet { UserDefaults.standard.set(isRunning, forKey: DefaultsKey.teleprompterIsRunning) }
@@ -63,14 +73,18 @@ final class TeleprompterService: ObservableObject {
     @Published var cueBrightness: TeleprompterCueBrightness = .medium
     @Published var windowWidth: Double = 560.0 {
         didSet {
-            let bounded = min(Self.windowWidthRange.upperBound, max(Self.windowWidthRange.lowerBound, windowWidth))
+            let range = Self.windowWidthRange(for: overlayMode)
+            let bounded = min(range.upperBound, max(range.lowerBound, windowWidth))
             if bounded != windowWidth { windowWidth = bounded }
+            if bounded != oldValue { updateNotchSurfaceSize() }
         }
     }
     @Published var windowHeight: Double = 280.0 {
         didSet {
-            let bounded = min(Self.windowHeightRange.upperBound, max(Self.windowHeightRange.lowerBound, windowHeight))
+            let range = Self.windowHeightRange(for: overlayMode)
+            let bounded = min(range.upperBound, max(range.lowerBound, windowHeight))
             if bounded != windowHeight { windowHeight = bounded }
+            if bounded != oldValue { updateNotchSurfaceSize() }
         }
     }
     @Published var readingPosition: TeleprompterReadingPosition = .centered
@@ -244,11 +258,13 @@ final class TeleprompterService: ObservableObject {
         }
         let w = defaults.double(forKey: DefaultsKey.teleprompterWidth)
         if w > 0 {
-            windowWidth = min(Self.windowWidthRange.upperBound, max(Self.windowWidthRange.lowerBound, w))
+            let range = Self.windowWidthRange(for: overlayMode)
+            windowWidth = min(range.upperBound, max(range.lowerBound, w))
         }
         let h = defaults.double(forKey: DefaultsKey.teleprompterHeight)
         if h > 0 {
-            windowHeight = min(Self.windowHeightRange.upperBound, max(Self.windowHeightRange.lowerBound, h))
+            let range = Self.windowHeightRange(for: overlayMode)
+            windowHeight = min(range.upperBound, max(range.lowerBound, h))
         }
         if let posStr = defaults.string(forKey: DefaultsKey.teleprompterReadingPosition),
            let rp = TeleprompterReadingPosition(rawValue: posStr) {
@@ -360,6 +376,8 @@ final class TeleprompterService: ObservableObject {
         set(overlayTransparency, DefaultsKey.teleprompterOverlayTransparency)
         set(showElapsedTime, DefaultsKey.teleprompterShowElapsedTime)
         set(hideFromScreenShare, DefaultsKey.teleprompterHideFromScreenShare)
+        set(speechLocale, DefaultsKey.teleprompterSpeechLanguage)
+        set(selectedMicUID, DefaultsKey.teleprompterSelectedMicUID)
     }
 
     private func loadPlacementProfile(for mode: TeleprompterOverlayMode) {
@@ -394,6 +412,8 @@ final class TeleprompterService: ObservableObject {
         if let value = number(DefaultsKey.teleprompterOverlayTransparency) { overlayTransparency = value }
         showElapsedTime = bool(DefaultsKey.teleprompterShowElapsedTime, fallback: showElapsedTime)
         hideFromScreenShare = bool(DefaultsKey.teleprompterHideFromScreenShare, fallback: hideFromScreenShare)
+        if let locale = string(DefaultsKey.teleprompterSpeechLanguage) { speechLocale = locale }
+        if let mic = string(DefaultsKey.teleprompterSelectedMicUID) { selectedMicUID = mic }
     }
 
     /// Resets all teleprompter options to defaults, preserving user scripts and pages.
@@ -557,6 +577,10 @@ final class TeleprompterService: ObservableObject {
         savePlacementProfile(for: overlayMode)
         overlayMode = mode
         loadPlacementProfile(for: mode)
+        let widthRange = Self.windowWidthRange(for: mode)
+        let heightRange = Self.windowHeightRange(for: mode)
+        windowWidth = min(widthRange.upperBound, max(widthRange.lowerBound, windowWidth))
+        windowHeight = min(heightRange.upperBound, max(heightRange.lowerBound, windowHeight))
         savePreferences()
     }
 
