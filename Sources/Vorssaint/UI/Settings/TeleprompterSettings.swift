@@ -175,7 +175,7 @@ struct TeleprompterSettings: View {
 
                     Toggle("", isOn: $teleprompterShortcutEnabled)
                         .labelsHidden()
-                        .onChange(of: teleprompterShortcutEnabled) { _ in
+                        .onChange(of: teleprompterShortcutEnabled) { _, _ in
                             service.syncWithPreferences()
                         }
                         .disabled(!teleprompterEnabled)
@@ -241,27 +241,27 @@ struct TeleprompterSettings: View {
                         Text(family.label).tag(family)
                     }
                 }
-                .onChange(of: service.fontFamily) { _ in service.savePreferences() }
+                .onChange(of: service.fontFamily) { _, _ in service.savePreferences() }
 
                 Picker("Font Size", selection: $service.fontSize) {
                     ForEach(TeleprompterFontSizePreset.allCases) { size in
                         Text("\(size.label) (\(Int(size.pointSize)) pt)").tag(size)
                     }
                 }
-                .onChange(of: service.fontSize) { _ in service.savePreferences() }
+                .onChange(of: service.fontSize) { _, _ in service.savePreferences() }
 
                 HStack {
                     Text("Highlight Color")
                     Spacer()
                     TeleprompterHighlightColorPicker(selection: $service.highlightColor)
-                        .onChange(of: service.highlightColor) { _ in service.savePreferences() }
+                        .onChange(of: service.highlightColor) { _, _ in service.savePreferences() }
                 }
 
                 HStack {
                     Text("Cue Color")
                     Spacer()
                     TeleprompterCueColorPicker(selection: $service.cueColor)
-                        .onChange(of: service.cueColor) { _ in service.savePreferences() }
+                        .onChange(of: service.cueColor) { _, _ in service.savePreferences() }
                 }
 
                 Picker("Cue Brightness", selection: $service.cueBrightness) {
@@ -270,7 +270,7 @@ struct TeleprompterSettings: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .onChange(of: service.cueBrightness) { _ in
+                .onChange(of: service.cueBrightness) { _, _ in
                     triggerHaptic()
                     service.savePreferences()
                 }
@@ -293,7 +293,7 @@ struct TeleprompterSettings: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .onChange(of: service.guidanceMode) { _ in
+                    .onChange(of: service.guidanceMode) { _, _ in
                         triggerHaptic()
                         service.savePreferences()
                     }
@@ -304,7 +304,7 @@ struct TeleprompterSettings: View {
                         Text("Scroll Speed")
                             .frame(width: 110, alignment: .leading)
                         Slider(value: $service.scrollSpeed, in: 1.0...6.0, step: 0.1)
-                            .onChange(of: service.scrollSpeed) { _ in
+                            .onChange(of: service.scrollSpeed) { _, _ in
                                 triggerHaptic()
                                 service.savePreferences()
                             }
@@ -321,7 +321,7 @@ struct TeleprompterSettings: View {
                             .tag(loc.identifier)
                     }
                 }
-                .onChange(of: service.speechLocale) { _ in service.savePreferences() }
+                .onChange(of: service.speechLocale) { _, _ in service.savePreferences() }
 
                 Picker("Microphone", selection: $service.selectedMicUID) {
                     Text("System Default").tag("")
@@ -329,7 +329,7 @@ struct TeleprompterSettings: View {
                         Text(dev.name).tag(dev.uid)
                     }
                 }
-                .onChange(of: service.selectedMicUID) { _ in service.savePreferences() }
+                .onChange(of: service.selectedMicUID) { _, _ in service.savePreferences() }
             } header: {
                 Text("Guidance")
             }
@@ -349,21 +349,21 @@ struct TeleprompterSettings: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .onChange(of: service.readingPosition) { _ in
+                    .onChange(of: service.readingPosition) { _, _ in
                         triggerHaptic()
                         service.savePreferences()
                     }
                 }
 
                 Toggle("Show paragraph dividers", isOn: $service.showParagraphDividers)
-                    .onChange(of: service.showParagraphDividers) { _ in service.savePreferences() }
+                    .onChange(of: service.showParagraphDividers) { _, _ in service.savePreferences() }
 
                 Toggle("Show last spoken word", isOn: $service.showLastSpokenWords)
-                    .onChange(of: service.showLastSpokenWords) { _ in service.savePreferences() }
+                    .onChange(of: service.showLastSpokenWords) { _, _ in service.savePreferences() }
 
                 HStack {
                     Toggle("Keep screen awake while teleprompter is active", isOn: $service.keepScreenAwake)
-                        .onChange(of: service.keepScreenAwake) { _ in service.savePreferences() }
+                        .onChange(of: service.keepScreenAwake) { _, _ in service.savePreferences() }
                     Spacer()
                     InfoTip(text: "Prevents the display from sleeping during an active teleprompter session using an IOKit power assertion.")
                 }
@@ -380,7 +380,7 @@ struct TeleprompterSettings: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .onChange(of: service.overlayMode) { _ in
+                .onChange(of: service.overlayMode) { _, _ in
                     triggerHaptic()
                     service.savePreferences()
                 }
@@ -397,7 +397,7 @@ struct TeleprompterSettings: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .onChange(of: service.displayTargetMode) { _ in
+                    .onChange(of: service.displayTargetMode) { _, _ in
                         triggerHaptic()
                         service.savePreferences()
                     }
@@ -407,7 +407,7 @@ struct TeleprompterSettings: View {
                     Text("Window Width")
                         .frame(width: 110, alignment: .leading)
                     Slider(value: $service.windowWidth, in: 300...900, step: 10)
-                        .onChange(of: service.windowWidth) { _ in
+                        .onChange(of: service.windowWidth) { _, _ in
                             triggerHaptic()
                             service.savePreferences()
                         }
@@ -421,7 +421,7 @@ struct TeleprompterSettings: View {
                     Text("Window Height")
                         .frame(width: 110, alignment: .leading)
                     Slider(value: $service.windowHeight, in: 120...600, step: 10)
-                        .onChange(of: service.windowHeight) { _ in
+                        .onChange(of: service.windowHeight) { _, _ in
                             triggerHaptic()
                             service.savePreferences()
                         }
@@ -435,7 +435,7 @@ struct TeleprompterSettings: View {
                     Text("Transparency")
                         .frame(width: 110, alignment: .leading)
                     Slider(value: $service.overlayTransparency, in: 0.0...0.5, step: 0.05)
-                        .onChange(of: service.overlayTransparency) { _ in
+                        .onChange(of: service.overlayTransparency) { _, _ in
                             triggerHaptic()
                             service.savePreferences()
                         }
@@ -446,17 +446,17 @@ struct TeleprompterSettings: View {
                 }
 
                 Toggle("Show elapsed time", isOn: $service.showElapsedTime)
-                    .onChange(of: service.showElapsedTime) { _ in service.savePreferences() }
+                    .onChange(of: service.showElapsedTime) { _, _ in service.savePreferences() }
 
                 HStack {
                     Toggle("Hide from screen sharing", isOn: $service.hideFromScreenShare)
-                        .onChange(of: service.hideFromScreenShare) { _ in service.savePreferences() }
+                        .onChange(of: service.hideFromScreenShare) { _, _ in service.savePreferences() }
                     Spacer()
                     InfoTip(text: "Sets window sharing to none, ensuring your script remains completely invisible during Zoom, Teams, and Google Meet screen presentations.")
                 }
 
                 Toggle("Auto next page", isOn: $service.autoNextPage)
-                    .onChange(of: service.autoNextPage) { _ in service.savePreferences() }
+                    .onChange(of: service.autoNextPage) { _, _ in service.savePreferences() }
             } header: {
                 Text("Teleprompter Window & Display")
             }
@@ -470,7 +470,7 @@ struct TeleprompterSettings: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .onChange(of: service.externalDisplayMode) { _ in
+                .onChange(of: service.externalDisplayMode) { _, _ in
                     triggerHaptic()
                     service.savePreferences()
                 }
@@ -487,7 +487,7 @@ struct TeleprompterSettings: View {
                                 Text(scr.localizedName).tag(scr.displayID)
                             }
                         }
-                        .onChange(of: service.externalScreenID) { _ in service.savePreferences() }
+                        .onChange(of: service.externalScreenID) { _, _ in service.savePreferences() }
                     }
 
                     if service.externalDisplayMode == .mirror {
@@ -504,7 +504,7 @@ struct TeleprompterSettings: View {
                             }
                             .pickerStyle(.segmented)
                             .frame(maxWidth: 220)
-                            .onChange(of: service.externalMirrorAxis) { _ in
+                            .onChange(of: service.externalMirrorAxis) { _, _ in
                                 triggerHaptic()
                                 service.savePreferences()
                             }
