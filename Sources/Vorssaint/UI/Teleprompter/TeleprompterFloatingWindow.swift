@@ -119,7 +119,7 @@ struct TeleprompterFloatingContentView: View {
             VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
                 .opacity(max(0.2, 1.0 - service.overlayTransparency))
 
-            VStack(spacing: 8) {
+            VStack(spacing: service.isRunning ? 4 : 8) {
                 header
 
                 SpeechScrollView(
@@ -146,7 +146,7 @@ struct TeleprompterFloatingContentView: View {
                 footer
             }
             .padding(.horizontal, 12)
-            .padding(.top, 10)
+            .padding(.top, service.isRunning && !service.showElapsedTime ? 2 : 10)
             .padding(.bottom, 10)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -164,51 +164,52 @@ struct TeleprompterFloatingContentView: View {
         }
     }
 
-    private var header: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "text.alignleft")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(service.highlightColor.color)
-                .frame(width: 26, height: 26)
-                .background(service.highlightColor.color.opacity(0.16), in: RoundedRectangle(cornerRadius: 8))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Teleprompter")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.95))
-                Text(statusText)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.58))
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 4)
-
-            if service.showElapsedTime && service.isRunning {
-                HStack(spacing: 4) {
-                    Image(systemName: "stopwatch")
-                        .font(.system(size: 10, weight: .medium))
+    @ViewBuilder private var header: some View {
+        if service.isRunning {
+            if service.showElapsedTime {
+                HStack {
+                    Spacer(minLength: 0)
                     Text(service.formattedElapsedTime)
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .monospacedDigit()
+                        .foregroundStyle(.white.opacity(0.5))
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Elapsed time")
+                        .accessibilityValue(service.formattedElapsedTime)
                 }
-                .foregroundStyle(service.highlightColor.color)
-                .padding(.horizontal, 8)
-                .frame(height: 26)
-                .background(service.highlightColor.color.opacity(0.14), in: Capsule())
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Elapsed time")
-                .accessibilityValue(service.formattedElapsedTime)
+                .frame(height: 16)
+            } else {
+                Color.clear.frame(height: 0)
             }
+        } else {
+            HStack(spacing: 8) {
+                Image(systemName: "text.alignleft")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(service.highlightColor.color)
+                    .frame(width: 26, height: 26)
+                    .background(service.highlightColor.color.opacity(0.16), in: RoundedRectangle(cornerRadius: 8))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Teleprompter")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.95))
+                    Text("Ready")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.58))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 4)
+            }
+            .frame(minHeight: 28)
         }
-        .frame(minHeight: 28)
     }
 
     private var footer: some View {
         HStack(spacing: 8) {
-            if service.isRunning && !service.isPaused && recognizer.isListening {
+            if service.isRunning && !service.isPaused && (recognizer.isStarting || recognizer.isListening) {
                 liveWaveform
-            } else {
+            } else if !service.isRunning || service.isPaused {
                 HStack(spacing: 5) {
                     Circle()
                         .fill(service.isPaused ? Color.orange : service.highlightColor.color)
@@ -293,12 +294,6 @@ struct TeleprompterFloatingContentView: View {
         .accessibilityLabel("Listening")
     }
 
-    private var statusText: String {
-        if !service.isRunning { return "Ready" }
-        if service.isPaused { return "Paused" }
-        if recognizer.isListening { return "Listening" }
-        return service.guidanceMode.label
-    }
 }
 
 struct VisualEffectBlur: NSViewRepresentable {

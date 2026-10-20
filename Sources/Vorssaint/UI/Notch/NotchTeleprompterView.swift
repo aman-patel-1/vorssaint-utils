@@ -33,12 +33,19 @@ struct NotchTeleprompterView: View {
         .notchBand(leading: {
             HStack(spacing: 7) {
                 NotchIconButton(symbol: "arrow.uturn.backward", title: l10n.s.obBack, action: NotchService.shared.backFromTeleprompter)
-                Text(service.isRunning ? String(format: "%.1fx", service.scrollSpeed) : "Script Pages")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.65))
-                    .lineLimit(1)
-                    .accessibilityLabel(service.isRunning ? "Scroll speed" : "Script Pages")
-                    .accessibilityValue(service.isRunning ? String(format: "%.1fx", service.scrollSpeed) : "")
+                if !service.isRunning {
+                    Text("Script Pages")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.65))
+                        .lineLimit(1)
+                } else if service.guidanceMode != .wordTracking {
+                    Text(String(format: "%.1fx", service.scrollSpeed))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.65))
+                        .lineLimit(1)
+                        .accessibilityLabel("Scroll speed")
+                        .accessibilityValue(String(format: "%.1fx", service.scrollSpeed))
+                }
             }
         }, trailing: {
             HStack(spacing: 6) {

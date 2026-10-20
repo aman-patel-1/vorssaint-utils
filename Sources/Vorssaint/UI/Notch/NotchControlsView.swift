@@ -537,7 +537,7 @@ private struct NotchTeleprompterTile: View {
             symbol: prompter.isRunning ? (prompter.isPaused ? "play.fill" : "pause.fill")
                 : NotchControlItem.teleprompter.symbol,
             title: FeatureStrings.teleprompter(l10n.language).title,
-            reading: prompter.isRunning ? prompter.formattedElapsedTime : nil,
+            reading: prompter.isRunning && prompter.showElapsedTime ? prompter.formattedElapsedTime : nil,
             active: prompter.isRunning,
             accent: .teleprompter
         ) { service.select(.teleprompter) }

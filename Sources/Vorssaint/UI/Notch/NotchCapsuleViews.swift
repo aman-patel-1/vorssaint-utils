@@ -435,7 +435,7 @@ private struct NotchCapsuleCompanionMark: View {
     }
 }
 
-/// Elapsed reading time and a play/pause control while the teleprompter runs.
+/// A play/pause control and optional elapsed reading time while prompting.
 struct NotchCapsuleTeleprompterStrip: View {
     @ObservedObject var service: NotchService
     let size: CGSize
@@ -454,23 +454,25 @@ struct NotchCapsuleTeleprompterStrip: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(prompter.isPaused ? FeatureStrings.teleprompter(l10n.language).resume
                                                        : FeatureStrings.teleprompter(l10n.language).pause)
-                Button { service.openActivity(.teleprompter) } label: {
-                    Text(prompter.formattedElapsedTime)
-                        .font(Font(CapsuleLayout.readingFont as CTFont))
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .fixedSize()
+                if prompter.showElapsedTime {
+                    Button { service.openActivity(.teleprompter) } label: {
+                        Text(prompter.formattedElapsedTime)
+                            .font(Font(CapsuleLayout.readingFont as CTFont))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(FeatureStrings.teleprompter(l10n.language).title)
+                    .accessibilityValue(prompter.formattedElapsedTime)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(FeatureStrings.teleprompter(l10n.language).title)
-                .accessibilityValue(prompter.formattedElapsedTime)
             }
         }
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
     }
 }
 
-/// The island strip keeps the elapsed time beside a live pause/resume control.
+/// The island strip keeps an optional elapsed time beside pause/resume.
 struct NotchTeleprompterStrip: View {
     @ObservedObject var service: NotchService
     var displayGeometry: NotchGeometry? = nil
@@ -497,19 +499,21 @@ struct NotchTeleprompterStrip: View {
             .accessibilityLabel(prompter.isPaused ? FeatureStrings.teleprompter(l10n.language).resume
                                                    : FeatureStrings.teleprompter(l10n.language).pause)
             Color.clear.frame(width: geometry.compactActivityCameraGap)
-            Button { service.openActivity(.teleprompter) } label: {
-                Text(prompter.formattedElapsedTime)
-                    .font(.system(size: textSize, weight: .medium, design: .monospaced))
-                    .monospacedDigit()
-                    .foregroundStyle(.indigo)
-                    .lineLimit(1)
-                    .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
-                           alignment: .trailing)
-                    .contentShape(Rectangle())
+            if prompter.showElapsedTime {
+                Button { service.openActivity(.teleprompter) } label: {
+                    Text(prompter.formattedElapsedTime)
+                        .font(.system(size: textSize, weight: .medium, design: .monospaced))
+                        .monospacedDigit()
+                        .foregroundStyle(.white.opacity(0.5))
+                        .lineLimit(1)
+                        .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
+                               alignment: .trailing)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(FeatureStrings.teleprompter(l10n.language).title)
+                .accessibilityValue(prompter.formattedElapsedTime)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(FeatureStrings.teleprompter(l10n.language).title)
-            .accessibilityValue(prompter.formattedElapsedTime)
         }
         .frame(height: geometry.compactActivityContentHeight)
         .padding(.horizontal, geometry.compactActivityHorizontalPadding)
