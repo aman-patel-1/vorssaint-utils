@@ -29,7 +29,6 @@ struct DirectorCommand: Codable {
 
 // MARK: - Director Server
 
-@MainActor
 final class DirectorServer {
     private var httpListener: NWListener?
     private var wsListener: NWListener?
@@ -43,11 +42,11 @@ final class DirectorServer {
     private var contentActive: Bool = false
 
     // Callbacks
-    var onSetText: (@MainActor (String) -> Void)?
-    var onUpdateText: (@MainActor (String, Int) -> Void)?
-    var onStop: (@MainActor () -> Void)?
-    var onNextPage: (@MainActor () -> Void)?
-    var onPrevPage: (@MainActor () -> Void)?
+    var onSetText: ((String) -> Void)?
+    var onUpdateText: ((String, Int) -> Void)?
+    var onStop: (() -> Void)?
+    var onNextPage: (() -> Void)?
+    var onPrevPage: (() -> Void)?
 
     var httpPort: UInt16 {
         let saved = UserDefaults.standard.integer(forKey: DefaultsKey.teleprompterDirectorServerPort)
@@ -186,23 +185,26 @@ final class DirectorServer {
 
     private func handleIncomingMessage(_ data: Data) {
         guard let command = try? JSONDecoder().decode(DirectorCommand.self, from: data) else { return }
-        switch command.type {
-        case "setText":
-            if let text = command.text {
-                onSetText?(text)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            switch command.type {
+            case "setText":
+                if let text = command.text {
+                    self.onSetText?(text)
+                }
+            case "updateText":
+                if let text = command.text, let readCharCount = command.readCharCount {
+                    self.onUpdateText?(text, readCharCount)
+                }
+            case "stop":
+                self.onStop?()
+            case "nextPage":
+                self.onNextPage?()
+            case "prevPage":
+                self.onPrevPage?()
+            default:
+                break
             }
-        case "updateText":
-            if let text = command.text, let readCharCount = command.readCharCount {
-                onUpdateText?(text, readCharCount)
-            }
-        case "stop":
-            onStop?()
-        case "nextPage":
-            onNextPage?()
-        case "prevPage":
-            onPrevPage?()
-        default:
-            break
         }
     }
 
@@ -211,9 +213,7 @@ final class DirectorServer {
     private func startBroadcasting() {
         broadcastTimer?.invalidate()
         broadcastTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.broadcastState()
-            }
+            self?.broadcastState()
         }
     }
 

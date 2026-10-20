@@ -328,18 +328,3 @@ enum ExternalMirrorAxis: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - NSScreen Display ID Extension
-
-extension NSScreen {
-    var displayID: UInt32 {
-        guard let screenNumber = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
-            return 0
-        }
-        return screenNumber.uint32Value
-    }
-
-    var displayName: String {
-        localizedName
-    }
-}
-
