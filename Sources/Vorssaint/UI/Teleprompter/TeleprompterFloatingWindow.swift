@@ -136,14 +136,21 @@ struct TeleprompterFloatingContentView: View {
                     }
 
                     Button {
-                        service.stop()
+                        if service.overlayMode == .fullscreen {
+                            service.overlayMode = .floating
+                            service.savePreferences()
+                            TeleprompterFloatingWindowController.shared.show()
+                        } else {
+                            service.stop()
+                        }
                     } label: {
-                        Image(systemName: "xmark")
+                        Image(systemName: service.overlayMode == .fullscreen ? "arrow.down.right.and.arrow.up.left" : "xmark")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.white.opacity(0.6))
                             .frame(width: 20, height: 20)
                     }
                     .buttonStyle(.plain)
+                    .help(service.overlayMode == .fullscreen ? "Exit Fullscreen (Esc)" : "Close")
                 }
                 .padding(.horizontal, 14)
                 .padding(.top, 10)
@@ -168,6 +175,13 @@ struct TeleprompterFloatingContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
+        .onExitCommand {
+            if service.overlayMode == .fullscreen {
+                service.overlayMode = .floating
+                service.savePreferences()
+                TeleprompterFloatingWindowController.shared.show()
+            }
+        }
     }
 }
 
