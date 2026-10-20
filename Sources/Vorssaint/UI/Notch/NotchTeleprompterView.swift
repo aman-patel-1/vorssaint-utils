@@ -287,7 +287,8 @@ struct NotchTeleprompterView: View {
             // Footer bar
             HStack(spacing: 12) {
                 if (service.isRunning && !service.isPaused && (recognizer.isStarting || recognizer.isListening))
-                    || (service.isPreviewingInNotch && !service.isRunning && service.guidanceMode != .classic) {
+                    || (service.isPreviewingInNotch && !service.isRunning && !previewPlayback.isPaused
+                        && previewPlayback.isSpeaking) {
                     liveWaveform
                 }
 
@@ -332,26 +333,35 @@ struct NotchTeleprompterView: View {
                         .lineLimit(1)
                 }
 
-                if service.isRunning {
+                if service.isRunning || service.isPreviewingInNotch {
+                    let isPaused = service.isRunning ? service.isPaused : previewPlayback.isPaused
                     Button {
-                        service.toggle()
+                        if service.isRunning {
+                            service.toggle()
+                        } else {
+                            service.togglePreviewPause()
+                        }
                         triggerHaptic()
                     } label: {
-                        Image(systemName: service.isPaused ? "play.fill" : "pause.fill")
+                        Image(systemName: isPaused ? "play.fill" : "pause.fill")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.white)
                             .frame(width: 28, height: 28)
                             .background(Color.white.opacity(0.14), in: Circle())
                     }
                     .buttonStyle(NotchButtonStyle(cornerRadius: 14))
-                    .help(service.isPaused ? FeatureStrings.teleprompter(l10n.language).resume
-                                            : FeatureStrings.teleprompter(l10n.language).pause)
-                    .accessibilityLabel(service.isPaused ? FeatureStrings.teleprompter(l10n.language).resume
-                                                         : FeatureStrings.teleprompter(l10n.language).pause)
+                    .help(isPaused ? FeatureStrings.teleprompter(l10n.language).resume
+                                   : FeatureStrings.teleprompter(l10n.language).pause)
+                    .accessibilityLabel(isPaused ? FeatureStrings.teleprompter(l10n.language).resume
+                                                 : FeatureStrings.teleprompter(l10n.language).pause)
 
                     Button {
-                        service.stop()
-                        showingPageCards = true
+                        if service.isRunning {
+                            service.stop()
+                            showingPageCards = true
+                        } else {
+                            backFromTeleprompter()
+                        }
                         triggerHaptic()
                     } label: {
                         Image(systemName: "xmark")
@@ -361,22 +371,8 @@ struct NotchTeleprompterView: View {
                             .background(Color.red.opacity(0.18), in: Circle())
                     }
                     .buttonStyle(NotchButtonStyle(cornerRadius: 14))
-                    .help(FeatureStrings.teleprompter(l10n.language).stop)
-                    .accessibilityLabel(FeatureStrings.teleprompter(l10n.language).stop)
-                } else if service.isPreviewingInNotch {
-                    Button {
-                        backFromTeleprompter()
-                        triggerHaptic()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.7))
-                            .frame(width: 28, height: 28)
-                            .background(Color.white.opacity(0.12), in: Circle())
-                    }
-                    .buttonStyle(NotchButtonStyle(cornerRadius: 14))
-                    .help("Close Preview")
-                    .accessibilityLabel("Close Preview")
+                    .help(service.isRunning ? FeatureStrings.teleprompter(l10n.language).stop : "Close Preview")
+                    .accessibilityLabel(service.isRunning ? FeatureStrings.teleprompter(l10n.language).stop : "Close Preview")
                 }
             }
             .padding(.horizontal, 16)

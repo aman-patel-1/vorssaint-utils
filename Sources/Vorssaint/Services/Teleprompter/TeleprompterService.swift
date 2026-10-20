@@ -13,6 +13,7 @@ final class TeleprompterPreviewPlayback: ObservableObject {
     @Published var wordProgress: Double = 0
     @Published var pageIndex = 0
     @Published var isSpeaking = false
+    @Published var isPaused = false
 }
 
 @MainActor
@@ -531,6 +532,7 @@ final class TeleprompterService: ObservableObject {
         if isChangingSurface {
             previewPlayback.wordProgress = 0
             previewPlayback.pageIndex = 0
+            previewPlayback.isPaused = false
             previewPlayback.isSpeaking = guidanceMode == .wordTracking
             previewVoiceCycleTime = 0
         }
@@ -562,6 +564,7 @@ final class TeleprompterService: ObservableObject {
         previewLastTickTime = nil
         previewVoiceCycleTime = 0
         previewPlayback.isSpeaking = false
+        previewPlayback.isPaused = false
         isPreviewingInNotch = false
         NotchService.shared.setTeleprompterSurfaceSize(nil)
     }
@@ -583,6 +586,10 @@ final class TeleprompterService: ObservableObject {
                 let now = ProcessInfo.processInfo.systemUptime
                 let delta = min(0.1, max(0, now - (self.previewLastTickTime ?? now)))
                 self.previewLastTickTime = now
+                guard !self.previewPlayback.isPaused else {
+                    self.previewPlayback.isSpeaking = false
+                    return
+                }
                 let wordCount = max(1, splitTextIntoWords(self.previewCurrentScript).count)
                 if self.guidanceMode == .voiceActivated {
                     self.previewVoiceCycleTime += delta
@@ -616,7 +623,7 @@ final class TeleprompterService: ObservableObject {
         previewPlayback.wordProgress = 0
         previewVoiceCycleTime = 0
         previewLastTickTime = ProcessInfo.processInfo.systemUptime
-        previewPlayback.isSpeaking = guidanceMode == .wordTracking
+        previewPlayback.isSpeaking = !previewPlayback.isPaused && guidanceMode == .wordTracking
     }
 
     func nextPreviewPage() {
@@ -625,7 +632,14 @@ final class TeleprompterService: ObservableObject {
         previewPlayback.wordProgress = 0
         previewVoiceCycleTime = 0
         previewLastTickTime = ProcessInfo.processInfo.systemUptime
-        previewPlayback.isSpeaking = guidanceMode == .wordTracking
+        previewPlayback.isSpeaking = !previewPlayback.isPaused && guidanceMode == .wordTracking
+    }
+
+    func togglePreviewPause() {
+        guard isPreviewingInNotch, !isRunning else { return }
+        previewPlayback.isPaused.toggle()
+        previewLastTickTime = ProcessInfo.processInfo.systemUptime
+        previewPlayback.isSpeaking = !previewPlayback.isPaused && guidanceMode == .wordTracking
     }
 
     private func updateNotchSurfaceSize() {

@@ -133,7 +133,7 @@ struct SpeechScrollView: View {
                 if (wasEmpty || widthChanged || paragraphLayoutChanged), !positions.isEmpty {
                     anchoredLayoutWidth = geo.size.width
                     anchoredParagraphBreakBeforeWordIndices = paragraphBreakBeforeWordIndices
-                    recalculateTracking(containerHeight: containerHeight)
+                    recalculateTracking(containerHeight: containerHeight, force: true)
                 }
             }
             .offset(y: scrollOffset + manualOffset)
@@ -145,14 +145,14 @@ struct SpeechScrollView: View {
                 if highlightedCharCount == 0 && smoothWordProgress == 0 {
                     let lineHeight = font.pointSize * 1.4
                     scrollOffset = newHeight * readingAnchorRatio - lineHeight * 0.5
-                } else if isListening {
-                    recalculateTracking(containerHeight: newHeight)
+                } else {
+                    recalculateTracking(containerHeight: newHeight, force: true)
                 }
             }
             .onChange(of: readingPosition) { _, _ in
                 manualOffset = 0
                 hasAppliedTrackingTarget = false
-                recalculateTracking(containerHeight: containerHeight)
+                recalculateTracking(containerHeight: containerHeight, force: true)
             }
             .onChange(of: highlightedCharCount) { _, _ in
                 if isListening && !smoothScroll {
@@ -191,31 +191,30 @@ struct SpeechScrollView: View {
         .clipped()
     }
 
-    private func recalculateTracking(containerHeight: CGFloat) {
+    private func recalculateTracking(containerHeight: CGFloat, force: Bool = false) {
         guard containerHeight > 0 else { return }
-        let center = containerHeight * readingAnchorRatio
+        let anchor = containerHeight * readingAnchorRatio
 
         if smoothScroll {
-            let bottomAnchor = containerHeight - 24
             let wordIdx = Int(smoothWordProgress)
             let fraction = smoothWordProgress - Double(wordIdx)
             let clampedIdx = max(0, min(wordIdx, words.count - 1))
             guard let wordY = wordYPositions[clampedIdx] else { return }
             let nextY = wordYPositions[clampedIdx + 1] ?? wordY
             let interpolatedY = wordY + (nextY - wordY) * CGFloat(fraction)
-            applyTrackingTarget(bottomAnchor - interpolatedY)
+            applyTrackingTarget(anchor - interpolatedY, force: force)
         } else {
             let wordIdx = activeWordIndex()
             if let wordY = wordYPositions[wordIdx] {
-                applyTrackingTarget(center - wordY)
+                applyTrackingTarget(anchor - wordY, force: force)
             }
         }
     }
 
     private func repositionTracking(toWordIndex wordIndex: Int) {
         guard let wordY = wordYPositions[wordIndex] else { return }
-        let center = containerHeight * readingAnchorRatio
-        applyTrackingTarget(center - wordY, force: true)
+        let anchor = containerHeight * readingAnchorRatio
+        applyTrackingTarget(anchor - wordY, force: true)
     }
 
     /// Normal reading progress may only move the text upward. Brief backward
