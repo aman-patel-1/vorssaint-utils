@@ -16,6 +16,8 @@ final class TeleprompterService: ObservableObject {
     @Published var isRunning: Bool = false {
         didSet { UserDefaults.standard.set(isRunning, forKey: DefaultsKey.teleprompterIsRunning) }
     }
+    /// Shows a sample through the real notch prompter UI without starting a session.
+    @Published private(set) var isPreviewingInNotch = false
     @Published var isPaused: Bool = false
     @Published var text: String = "Welcome to Vorssaint Teleprompter.\n\nRead your script naturally while on camera. Words highlight in real time as you speak, powered by 100% on-device speech recognition."
     @Published var pages: [String] = []
@@ -451,6 +453,19 @@ final class TeleprompterService: ObservableObject {
         }
     }
 
+    func previewInNotch() {
+        guard !isRunning else {
+            NotchService.shared.open(.teleprompter)
+            return
+        }
+        isPreviewingInNotch = true
+        NotchService.shared.open(.teleprompter)
+    }
+
+    func endNotchPreview() {
+        isPreviewingInNotch = false
+    }
+
     func closeFloatingWindow() {
         if isRunning {
             stop()
@@ -474,6 +489,7 @@ final class TeleprompterService: ObservableObject {
 
     func start() {
         guard !isRunning else { return }
+        isPreviewingInNotch = false
         isRunning = true
         isPaused = false
         restartSpeechOnResume = false
@@ -581,6 +597,7 @@ final class TeleprompterService: ObservableObject {
     }
 
     func stop() {
+        isPreviewingInNotch = false
         isRunning = false
         isPaused = false
         restartSpeechOnResume = false

@@ -407,6 +407,14 @@ struct TeleprompterSettings: View {
                     triggerHaptic()
                     service.savePreferences()
                 }
+
+                Button {
+                    service.previewInNotch()
+                    triggerHaptic()
+                } label: {
+                    Label("Preview in Notch", systemImage: "rectangle.topthird.inset.filled")
+                }
+                .help("Show a live sample in the notch using the current appearance settings. This does not start speech recognition or a teleprompter session.")
             } header: {
                 Text("Appearance")
             }
@@ -733,21 +741,6 @@ struct TeleprompterSettings: View {
             .disabled(!teleprompterEnabled)
         }
         .formStyle(.grouped)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("LIVE RUNNING PREVIEW")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .tracking(0.6)
-                    .foregroundStyle(.secondary)
-                TeleprompterRunningPreview(service: service)
-            }
-            .padding(.horizontal, 14)
-            .padding(.top, 7)
-            .padding(.bottom, 8)
-            .frame(maxWidth: .infinity)
-            .background(Color(NSColor.windowBackgroundColor))
-            .overlay(alignment: .bottom) { Divider() }
-        }
         .onAppear {
             inputDevices = AudioInputDevice.allInputDevices()
             openRequestedNewPageIfNeeded()
@@ -1041,151 +1034,6 @@ struct TeleprompterSettings: View {
         let scaled = outputImage.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
         guard let cgImage = context.createCGImage(scaled, from: scaled.extent) else { return nil }
         return NSImage(cgImage: cgImage, size: NSSize(width: 120, height: 120))
-    }
-}
-
-/// A settings-side rendering of the same script view and running controls used
-/// by the notch and floating window. It remains a preview and never starts the
-/// real teleprompter session.
-private struct TeleprompterRunningPreview: View {
-    @ObservedObject var service: TeleprompterService
-
-    private let sampleScript = "Speak with confidence. [PAUSE] Keep your pace steady and let each idea land. [LOOK AT CAMERA] Then continue with your next thought.\n\nStay clear and breathe naturally. [SMILE]"
-
-    private var words: [String] { splitTextIntoWords(sampleScript) }
-    private var previewProgress: Double { min(7.25, Double(words.count - 1)) }
-    private var previewCharCount: Int {
-        words.prefix(7).reduce(0) { $0 + $1.count + 1 } - 2
-    }
-    private var previewWidth: CGFloat {
-        service.overlayMode == .floating
-            ? min(470, max(280, CGFloat(service.windowWidth)))
-            : 400
-    }
-    private var previewSizeLabel: String {
-        let width = service.overlayMode == .floating ? Int(service.windowWidth) : 400
-        return "\(width) × \(Int(service.windowHeight))"
-    }
-    private var previewHeight: CGFloat {
-        min(190, max(service.overlayMode == .floating ? 140 : 160, CGFloat(service.windowHeight)))
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Circle().fill(Color.green).frame(width: 6, height: 6)
-                Spacer()
-                Text("\(service.overlayMode.label) · \(previewSizeLabel) · \(service.displayTargetMode.label)")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-
-            VStack(spacing: 5) {
-                previewHeader
-
-                ZStack {
-                    SpeechScrollView(
-                        words: words,
-                        highlightedCharCount: previewCharCount,
-                        font: service.fontFamily.nsFont(ofSize: service.fontSize.pointSize),
-                        highlightColor: service.highlightColor.color,
-                        cueColor: service.cueColor.color,
-                        cueUnreadOpacity: service.cueBrightness.alpha * 0.35,
-                        cueReadOpacity: service.cueBrightness.alpha,
-                        smoothScroll: service.guidanceMode != .wordTracking,
-                        smoothWordProgress: previewProgress,
-                        isListening: true,
-                        paragraphBreakBeforeWordIndices: service.showParagraphDividers
-                            ? paragraphBreakWordIndices(in: sampleScript) : [],
-                        readingPosition: service.readingPosition,
-                        showLastSpokenWords: service.showLastSpokenWords
-                    )
-                    .padding(.horizontal, 12)
-
-                    VStack {
-                        LinearGradient(colors: [.black.opacity(0.7), .clear], startPoint: .top, endPoint: .bottom)
-                            .frame(height: 12)
-                        Spacer()
-                        LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .top, endPoint: .bottom)
-                            .frame(height: 12)
-                    }
-                    .allowsHitTesting(false)
-                }
-                .frame(height: previewHeight - 62)
-
-                previewFooter
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .frame(width: previewWidth, height: previewHeight)
-            .background(Color.black.opacity(max(0.2, 1 - service.overlayTransparency)))
-            .clipShape(RoundedRectangle(cornerRadius: service.overlayMode == .notch ? 15 : 19, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: service.overlayMode == .notch ? 15 : 19, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-                    .allowsHitTesting(false)
-            }
-
-            Text("Typography, cue styling, reading position, guidance, window size, transparency, page controls, and elapsed time update live.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 4)
-    }
-
-    @ViewBuilder private var previewHeader: some View {
-        HStack(spacing: 6) {
-            if service.overlayMode == .notch {
-                Image(systemName: "arrow.uturn.backward")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.5))
-                if service.guidanceMode != .wordTracking {
-                    Text(String(format: "%.1fx", service.scrollSpeed))
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.65))
-                }
-            }
-
-            Spacer(minLength: 0)
-
-            if service.showElapsedTime {
-                Text("00:42")
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .monospacedDigit()
-                    .foregroundStyle(.white.opacity(0.5))
-                    .accessibilityLabel("Elapsed time preview")
-            }
-        }
-        .frame(height: service.overlayMode == .floating && !service.showElapsedTime ? 0 : 16)
-    }
-
-    private var previewFooter: some View {
-        HStack(spacing: 9) {
-            if service.guidanceMode != .classic {
-                TeleprompterWaveformView(
-                    levels: [0.12, 0.24, 0.42, 0.7, 0.35, 0.55, 0.2, 0.44],
-                    color: service.highlightColor.color,
-                    isActive: true
-                )
-                .frame(width: 42, height: 15)
-            }
-
-            Spacer(minLength: 0)
-
-            if service.autoNextPage && service.pages.count > 1 {
-                Image(systemName: "chevron.left")
-                Image(systemName: "chevron.right")
-            }
-            Image(systemName: "pause.fill")
-                .foregroundStyle(.white.opacity(0.8))
-            Image(systemName: "xmark")
-                .foregroundStyle(.white.opacity(0.5))
-        }
-        .font(.system(size: 9, weight: .semibold))
-        .frame(height: 18)
-        .foregroundStyle(.white.opacity(0.55))
     }
 }
 

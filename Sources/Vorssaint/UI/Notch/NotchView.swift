@@ -504,7 +504,7 @@ struct NotchView: View {
             size.height = max(size.height, 88 + 8)
         case .teleprompter:
             let compactHeight = NotchLayout.timer(mode: .timer, hasSession: true, height: size.height)
-            size.height = max(size.height, teleprompter.isRunning
+            size.height = max(size.height, (teleprompter.isRunning || teleprompter.isPreviewingInNotch)
                               ? max(compactHeight, CGFloat(teleprompter.windowHeight))
                               : max(compactHeight, NotchLayout.teleprompterPageListHeight))
         default: break

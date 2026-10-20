@@ -178,6 +178,7 @@ final class NotchService: ObservableObject {
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var subscriptions = Set<AnyCancellable>()
     private var teleprompterActivityIsRunning = false
+    private var teleprompterPreviewIsActive = false
     private var teleprompterSubscriptionGeneration: UInt64 = 0
     private var eventMonitors: [Any] = []
     private var screenEdgeClickMonitors: [Any] = []
@@ -230,7 +231,7 @@ final class NotchService: ObservableObject {
     private var keepsWorkingSurface: Bool {
         pinned || trackingMenu || NSApp.modalWindow != nil || panel?.attachedSheet != nil
             || NotchLyricsService.shared.isImporting
-            || (expanded && selected == .teleprompter && teleprompterActivityIsRunning)
+            || (expanded && selected == .teleprompter && (teleprompterActivityIsRunning || teleprompterPreviewIsActive))
             // Like the lyrics chooser, these panels stand beside the island
             // instead of hanging from it; a click in them is not a click away.
             || (expanded && MediaWorkspaceView.panelModalActive)
@@ -3886,6 +3887,7 @@ final class NotchService: ObservableObject {
         teleprompterSubscriptionGeneration &+= 1
         let teleprompterGeneration = teleprompterSubscriptionGeneration
         teleprompterActivityIsRunning = false
+        teleprompterPreviewIsActive = false
         if modules.contains(.timer) {
             NotchTimerService.shared.$session.removeDuplicates().receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
@@ -3904,12 +3906,22 @@ final class NotchService: ObservableObject {
                       self.modules.contains(.teleprompter) else { return }
                 let prompter = TeleprompterService.shared
                 self.teleprompterActivityIsRunning = prompter.isRunning
+                self.teleprompterPreviewIsActive = prompter.isPreviewingInNotch
                 prompter.$isRunning
                     .removeDuplicates()
                     .receive(on: DispatchQueue.main)
                     .sink { [weak self] isRunning in
                         guard let self else { return }
                         self.teleprompterActivityIsRunning = isRunning
+                        self.objectWillChange.send()
+                        self.refreshPresentation()
+                    }.store(in: &self.subscriptions)
+                prompter.$isPreviewingInNotch
+                    .removeDuplicates()
+                    .receive(on: DispatchQueue.main)
+                    .sink { [weak self] isPreviewing in
+                        guard let self else { return }
+                        self.teleprompterPreviewIsActive = isPreviewing
                         self.objectWillChange.send()
                         self.refreshPresentation()
                     }.store(in: &self.subscriptions)

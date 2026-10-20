@@ -13,6 +13,15 @@ struct NotchTeleprompterView: View {
     @State private var showingPageCards: Bool = false
     @State private var dragStartHeight: Double = -1
 
+    private let previewScript = "Speak with confidence. [PAUSE] Keep your pace steady and let each idea land. [LOOK AT CAMERA] Then continue with your next thought.\n\nStay clear and breathe naturally. [SMILE]"
+
+    private var showsPrompterSurface: Bool { service.isRunning || service.isPreviewingInNotch }
+    private var displayedWords: [String] {
+        service.isPreviewingInNotch && !service.isRunning ? splitTextIntoWords(previewScript) : service.currentWords
+    }
+    private var previewWordProgress: Double { min(7.25, Double(max(0, displayedWords.count - 1))) }
+    private var previewCharCount: Int { displayedWords.prefix(8).joined(separator: " ").count }
+
     private var pagesList: [String] {
         if service.pages.isEmpty {
             return [service.text]
@@ -22,7 +31,7 @@ struct NotchTeleprompterView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if service.isRunning && !showingPageCards {
+            if showsPrompterSurface && (!showingPageCards || service.isPreviewingInNotch) {
                 activePrompterView
             } else {
                 pageCardsStudioView
@@ -32,8 +41,13 @@ struct NotchTeleprompterView: View {
         .frame(width: size.width, height: size.height, alignment: .top)
         .notchBand(leading: {
             HStack(spacing: 7) {
-                NotchIconButton(symbol: "arrow.uturn.backward", title: l10n.s.obBack, action: NotchService.shared.backFromTeleprompter)
-                if !service.isRunning {
+                NotchIconButton(symbol: "arrow.uturn.backward", title: l10n.s.obBack, action: backFromTeleprompter)
+                if service.isPreviewingInNotch && !service.isRunning {
+                    Text("Preview")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.65))
+                        .lineLimit(1)
+                } else if !service.isRunning {
                     Text("Script Pages")
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.65))
@@ -49,8 +63,8 @@ struct NotchTeleprompterView: View {
             }
         }, trailing: {
             HStack(spacing: 6) {
-                if service.isRunning && service.showElapsedTime { elapsedTimeBadge }
-                if !service.isRunning || showingPageCards { addPageButton }
+                if showsPrompterSurface && service.showElapsedTime { elapsedTimeBadge }
+                if (!showsPrompterSurface || showingPageCards) && !service.isPreviewingInNotch { addPageButton }
             }
         })
     }
@@ -87,6 +101,11 @@ struct NotchTeleprompterView: View {
                 NSCursor.pop()
             }
         }
+    }
+
+    private func backFromTeleprompter() {
+        if service.isPreviewingInNotch { service.endNotchPreview() }
+        NotchService.shared.backFromTeleprompter()
     }
 
     // MARK: - 1. Page Cards Studio View (When stopped or toggled)
@@ -222,20 +241,24 @@ struct NotchTeleprompterView: View {
             // Prompter Script Display with Live Real-time Appearance Updates
             ZStack {
                 SpeechScrollView(
-                    words: service.currentWords,
-                    highlightedCharCount: recognizer.recognizedCharCount,
+                    words: displayedWords,
+                    highlightedCharCount: service.isPreviewingInNotch && !service.isRunning
+                        ? previewCharCount : recognizer.recognizedCharCount,
                     font: service.fontFamily.nsFont(ofSize: service.fontSize.pointSize),
                     highlightColor: service.highlightColor.color,
                     cueColor: service.cueColor.color,
                     cueUnreadOpacity: service.cueBrightness.alpha * 0.35,
                     cueReadOpacity: service.cueBrightness.alpha,
                     onWordTap: { charOffset in
-                        service.jumpTo(charOffset: charOffset)
+                        if service.isRunning { service.jumpTo(charOffset: charOffset) }
                     },
                     smoothScroll: service.guidanceMode != .wordTracking,
-                    smoothWordProgress: service.timerWordProgress,
-                    isListening: service.isRunning && !service.isPaused,
-                    paragraphBreakBeforeWordIndices: service.showParagraphDividers ? paragraphBreakWordIndices(in: service.currentScript) : [],
+                    smoothWordProgress: service.isPreviewingInNotch && !service.isRunning
+                        ? previewWordProgress : service.timerWordProgress,
+                    isListening: (service.isRunning && !service.isPaused)
+                        || (service.isPreviewingInNotch && !service.isRunning),
+                    paragraphBreakBeforeWordIndices: service.showParagraphDividers
+                        ? paragraphBreakWordIndices(in: service.isPreviewingInNotch && !service.isRunning ? previewScript : service.currentScript) : [],
                     readingPosition: service.readingPosition,
                     showLastSpokenWords: service.showLastSpokenWords
                 )
@@ -267,7 +290,8 @@ struct NotchTeleprompterView: View {
 
             // Footer bar
             HStack(spacing: 12) {
-                if service.isRunning && !service.isPaused && (recognizer.isStarting || recognizer.isListening) {
+                if (service.isRunning && !service.isPaused && (recognizer.isStarting || recognizer.isListening))
+                    || (service.isPreviewingInNotch && !service.isRunning && service.guidanceMode != .classic) {
                     liveWaveform
                 }
 
@@ -293,7 +317,7 @@ struct NotchTeleprompterView: View {
 
                 Spacer()
 
-                if let err = recognizer.error {
+                if service.isRunning, let err = recognizer.error {
                     Text(err)
                         .font(.system(size: 10))
                         .foregroundStyle(.red.opacity(0.9))
@@ -331,6 +355,20 @@ struct NotchTeleprompterView: View {
                     .buttonStyle(NotchButtonStyle(cornerRadius: 14))
                     .help(FeatureStrings.teleprompter(l10n.language).stop)
                     .accessibilityLabel(FeatureStrings.teleprompter(l10n.language).stop)
+                } else if service.isPreviewingInNotch {
+                    Button {
+                        backFromTeleprompter()
+                        triggerHaptic()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.7))
+                            .frame(width: 28, height: 28)
+                            .background(Color.white.opacity(0.12), in: Circle())
+                    }
+                    .buttonStyle(NotchButtonStyle(cornerRadius: 14))
+                    .help("Close Preview")
+                    .accessibilityLabel("Close Preview")
                 }
             }
             .padding(.horizontal, 16)
@@ -378,7 +416,7 @@ struct NotchTeleprompterView: View {
     /// The elapsed reading takes the page action's top-row position while
     /// running, and follows the user's elapsed-time preference.
     private var elapsedTimeBadge: some View {
-        Text(service.formattedElapsedTime)
+        Text(service.isRunning ? service.formattedElapsedTime : "00:42")
             .font(.system(size: 11, weight: .medium, design: .monospaced))
             .monospacedDigit()
             .foregroundStyle(.white.opacity(0.5))
@@ -386,7 +424,7 @@ struct NotchTeleprompterView: View {
             .frame(height: NotchLayout.timerStartHeight)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(FeatureStrings.notchActivities(l10n.language).stopwatch)
-            .accessibilityValue(service.formattedElapsedTime)
+            .accessibilityValue(service.isRunning ? service.formattedElapsedTime : "00:42")
     }
 
     private func previewSnippet(_ text: String) -> String {
