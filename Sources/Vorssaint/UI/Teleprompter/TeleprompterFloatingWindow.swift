@@ -115,6 +115,13 @@ struct TeleprompterFloatingContentView: View {
     @ObservedObject private var recognizer = TeleprompterService.shared.speechRecognizer
 
     private var pageCount: Int { max(1, service.pages.count) }
+    private var previewWords: [String] { splitTextIntoWords(TeleprompterService.previewScript) }
+    private var activeScript: String { service.isPreviewingFloating ? TeleprompterService.previewScript : service.currentScript }
+    private var activeWords: [String] { service.isPreviewingFloating ? previewWords : service.currentWords }
+    private var previewCharCount: Int {
+        activeWords.prefix(min(activeWords.count, max(0, Int(service.previewWordProgress))))
+            .joined(separator: " ").count
+    }
 
     var body: some View {
         ZStack {
@@ -125,8 +132,9 @@ struct TeleprompterFloatingContentView: View {
                 header
 
                 SpeechScrollView(
-                    words: service.currentWords,
-                    highlightedCharCount: recognizer.recognizedCharCount,
+                    words: activeWords,
+                    highlightedCharCount: service.isPreviewingFloating
+                        ? previewCharCount : recognizer.recognizedCharCount,
                     font: service.fontFamily.nsFont(ofSize: service.fontSize.pointSize),
                     highlightColor: service.highlightColor.color,
                     cueColor: service.cueColor.color,
@@ -136,9 +144,10 @@ struct TeleprompterFloatingContentView: View {
                         service.jumpTo(charOffset: offset)
                     },
                     smoothScroll: service.guidanceMode != .wordTracking,
-                    smoothWordProgress: service.timerWordProgress,
-                    isListening: service.isRunning && !service.isPaused,
-                    paragraphBreakBeforeWordIndices: service.showParagraphDividers ? paragraphBreakWordIndices(in: service.currentScript) : [],
+                    smoothWordProgress: service.isPreviewingFloating
+                        ? service.previewWordProgress : service.timerWordProgress,
+                    isListening: (service.isRunning && !service.isPaused) || service.isPreviewingFloating,
+                    paragraphBreakBeforeWordIndices: service.showParagraphDividers ? paragraphBreakWordIndices(in: activeScript) : [],
                     readingPosition: service.readingPosition,
                     showLastSpokenWords: service.showLastSpokenWords
                 )
@@ -168,7 +177,7 @@ struct TeleprompterFloatingContentView: View {
 
     @ViewBuilder private var header: some View {
         if service.isRunning {
-            if service.showElapsedTime {
+            if service.isRunning && service.showElapsedTime {
                 HStack {
                     Spacer(minLength: 0)
                     Text(service.formattedElapsedTime)
@@ -192,16 +201,22 @@ struct TeleprompterFloatingContentView: View {
                     .background(service.highlightColor.color.opacity(0.16), in: RoundedRectangle(cornerRadius: 8))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Teleprompter")
+                    Text(service.isPreviewingFloating ? "Preview" : "Teleprompter")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.95))
-                    Text("Ready")
+                    Text(service.isPreviewingFloating ? "Live settings preview" : "Ready")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(.white.opacity(0.58))
                         .lineLimit(1)
                 }
 
                 Spacer(minLength: 4)
+                if service.isPreviewingFloating && service.guidanceMode != .wordTracking {
+                    Text(String(format: "%.1fx", service.scrollSpeed))
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.65))
+                        .monospacedDigit()
+                }
             }
             .frame(minHeight: 28)
         }

@@ -2249,9 +2249,9 @@ struct NotchGeometry: Equatable {
     /// manual fit and outline clearance, rather than just the hardware inset.
     let cameraHeight: CGFloat
     let isNotched: Bool
-    let layout: NotchSize
-    let customWidth: CGFloat
-    let customHeight: CGFloat
+    var layout: NotchSize
+    var customWidth: CGFloat
+    var customHeight: CGFloat
     let menuBarHeight: CGFloat
     /// Nil hangs the island from the top edge. A capsule floats this far
     /// inside the menu bar, above and below its strips.

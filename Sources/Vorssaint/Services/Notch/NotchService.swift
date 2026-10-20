@@ -108,6 +108,7 @@ final class NotchService: ObservableObject {
 
     @Published private(set) var geometry = NotchGeometry(
         screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: 0, cameraWidth: 0)
+    @Published private(set) var teleprompterSurfaceSize: CGSize?
     @Published private(set) var expanded = false
     @Published private(set) var showsKeyboardFocus = false
     /// True when macOS refused the island's own shortcut, so Settings can say so.
@@ -884,6 +885,14 @@ final class NotchService: ObservableObject {
         result.requiresFullWidthHeader = selected == .captures && captureActions != nil
             && !showingSections && !showingAppPanel && selectedMetric == nil
         result.pageTop = expandedPageTop
+        if selected == .teleprompter, !showingSections, !showingAppPanel,
+           selectedMetric == nil, let surfaceSize = teleprompterSurfaceSize {
+            // Window dimensions size the whole island while the live prompter
+            // or its Settings preview is on screen.
+            result.layout = .custom
+            result.customWidth = surfaceSize.width
+            result.customHeight = surfaceSize.height
+        }
         if result.pageTop == .wrapsCamera { result.pageTrailingControls = playerToggleCount }
         // Under a preset each page takes the width it needs, up to the
         // preset's; the gallery, details and the empty island keep the chosen
@@ -896,6 +905,11 @@ final class NotchService: ObservableObject {
             result.sectionsButtonInRow = false
         }
         return result
+    }
+
+    func setTeleprompterSurfaceSize(_ size: CGSize?) {
+        guard teleprompterSurfaceSize != size else { return }
+        teleprompterSurfaceSize = size
     }
     /// The gallery keeps its search in the top row and a detail its way
     /// back; with no sections the island shows only how to add them.

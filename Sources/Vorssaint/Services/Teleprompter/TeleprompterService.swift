@@ -18,6 +18,8 @@ final class TeleprompterService: ObservableObject {
     }
     /// Shows a sample through the real notch prompter UI without starting a session.
     @Published private(set) var isPreviewingInNotch = false
+    @Published private(set) var isPreviewingFloating = false
+    @Published private(set) var previewWordProgress: Double = 0
     @Published var isPaused: Bool = false
     @Published var text: String = "Welcome to Vorssaint Teleprompter.\n\nRead your script naturally while on camera. Words highlight in real time as you speak, powered by 100% on-device speech recognition."
     @Published var pages: [String] = []
@@ -92,8 +94,17 @@ final class TeleprompterService: ObservableObject {
     private var sleepAssertionID: IOPMAssertionID = 0
     private var elapsedTimer: Timer?
     private var notchPreviewIdleTask: Task<Void, Never>?
+    private var previewProgressTimer: Timer?
     private var restoreFloatingAfterNotchPreview = false
     private var restartSpeechOnResume = false
+
+    static let previewScript = """
+        A quick brown fox jumps over the quiet fence, then follows the winding path toward the river. [PAUSE] The morning light catches every leaf as the breeze moves softly through the trees.
+
+        Take a slow breath, look toward the camera, and let the next idea arrive naturally. [LOOK AT CAMERA] Speak clearly, keep a comfortable pace, and leave a little space between each thought.
+
+        When the story reaches its final point, pause for a moment before continuing. A steady rhythm makes every sentence easier to follow. [SMILE]
+        """
 
     @Published var sessionStartTime: Date? = nil
     @Published var elapsedSeconds: Int = 0
@@ -468,6 +479,7 @@ final class TeleprompterService: ObservableObject {
     }
 
     private func presentNotchSurface() {
+        updateNotchSurfaceSize()
         floatingWindowVisible = false
         TeleprompterFloatingWindowController.shared.hide()
         if NotchSupport.isEnabled() {
@@ -479,21 +491,43 @@ final class TeleprompterService: ObservableObject {
     }
 
     private func presentFloatingSurface() {
+        NotchService.shared.setTeleprompterSurfaceSize(nil)
         NotchService.shared.collapse()
         floatingWindowVisible = true
         TeleprompterFloatingWindowController.shared.show()
     }
 
     func previewInNotch(autoCloseAfter inactivityInterval: TimeInterval? = nil) {
+        updateNotchSurfaceSize()
         guard !isRunning else {
-            applyOverlayPlacement()
+            if overlayMode == .floating { TeleprompterFloatingWindowController.shared.updateFrame() }
             return
         }
-        if !isPreviewingInNotch {
-            restoreFloatingAfterNotchPreview = floatingWindowVisible
+        if overlayMode == .floating {
+            let isChangingSurface = !isPreviewingFloating
+            if isChangingSurface { previewWordProgress = 0 }
+            isPreviewingInNotch = false
+            isPreviewingFloating = true
+            let shouldPresentWindow = isChangingSurface || !floatingWindowVisible
+            if shouldPresentWindow {
+                NotchService.shared.collapse()
+                floatingWindowVisible = true
+                TeleprompterFloatingWindowController.shared.show()
+            } else {
+                TeleprompterFloatingWindowController.shared.updateFrame()
+            }
+            startPreviewProgressTimerIfNeeded()
+        } else {
+            let isChangingSurface = !isPreviewingInNotch
+            if isChangingSurface { previewWordProgress = 0 }
+            if isChangingSurface { restoreFloatingAfterNotchPreview = floatingWindowVisible }
+            isPreviewingFloating = false
+            isPreviewingInNotch = true
+            if isChangingSurface || NotchService.shared.selected != .teleprompter || !NotchService.shared.expanded {
+                presentNotchSurface()
+            }
+            startPreviewProgressTimerIfNeeded()
         }
-        isPreviewingInNotch = true
-        presentNotchSurface()
 
         notchPreviewIdleTask?.cancel()
         guard let inactivityInterval else { return }
@@ -509,25 +543,56 @@ final class TeleprompterService: ObservableObject {
     }
 
     func endNotchPreview() {
+        let wasFloatingPreview = isPreviewingFloating
         notchPreviewIdleTask?.cancel()
         notchPreviewIdleTask = nil
+        previewProgressTimer?.invalidate()
+        previewProgressTimer = nil
         isPreviewingInNotch = false
+        isPreviewingFloating = false
         restoreFloatingAfterNotchPreview = false
+        NotchService.shared.setTeleprompterSurfaceSize(nil)
+        if wasFloatingPreview && !isRunning {
+            floatingWindowVisible = false
+            TeleprompterFloatingWindowController.shared.hide()
+        }
     }
 
     func closeNotchPreview() {
         let restoreFloating = restoreFloatingAfterNotchPreview && overlayMode == .floating
+        let wasNotchPreview = isPreviewingInNotch
         endNotchPreview()
-        if NotchService.shared.selected == .teleprompter {
+        if wasNotchPreview && NotchService.shared.selected == .teleprompter {
             NotchService.shared.backFromTeleprompter()
         }
         if restoreFloating { presentFloatingSurface() }
+    }
+
+    private func startPreviewProgressTimerIfNeeded() {
+        guard previewProgressTimer == nil else { return }
+        previewProgressTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            guard let self, self.isPreviewingInNotch || self.isPreviewingFloating else { return }
+            let wordCount = max(1, splitTextIntoWords(Self.previewScript).count)
+            let next = self.previewWordProgress + self.scrollSpeed * 0.05
+            self.previewWordProgress = next >= Double(wordCount) ? 0 : next
+        }
+    }
+
+    private func updateNotchSurfaceSize() {
+        guard overlayMode == .notch, isRunning || isPreviewingInNotch else {
+            NotchService.shared.setTeleprompterSurfaceSize(nil)
+            return
+        }
+        NotchService.shared.setTeleprompterSurfaceSize(
+            CGSize(width: windowWidth, height: windowHeight)
+        )
     }
 
     func closeFloatingWindow() {
         if isRunning {
             stop()
         } else {
+            if isPreviewingFloating { endNotchPreview() }
             floatingWindowVisible = false
             TeleprompterFloatingWindowController.shared.hide()
         }

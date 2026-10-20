@@ -435,9 +435,11 @@ struct TeleprompterSettings: View {
                         service.previewInNotch()
                         triggerHaptic()
                     } label: {
-                        Label("Preview in Notch", systemImage: "rectangle.topthird.inset.filled")
+                        Label(service.overlayMode == .floating ? "Preview Floating Window" : "Preview in Notch",
+                              systemImage: service.overlayMode == .floating
+                                  ? "macwindow" : "rectangle.topthird.inset.filled")
                     }
-                    .help("Show a live sample in the notch using the current appearance settings. This does not start speech recognition or a teleprompter session.")
+                    .help("Show a live, animated sample on the selected teleprompter surface using the current settings. This does not start a reading session.")
                 }
             } header: {
                 Text("Appearance")

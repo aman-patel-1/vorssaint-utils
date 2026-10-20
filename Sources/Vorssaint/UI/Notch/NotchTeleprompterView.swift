@@ -13,18 +13,17 @@ struct NotchTeleprompterView: View {
     @State private var showingPageCards: Bool = false
     @State private var dragStartHeight: Double = -1
 
-    private let samplePreviewScript = "Speak with confidence. [PAUSE] Keep your pace steady and let each idea land. [LOOK AT CAMERA] Then continue with your next thought.\n\nStay clear and breathe naturally. [SMILE]"
-
-    private var previewScript: String {
-        service.pages.count > 1 ? service.currentScript : samplePreviewScript
-    }
+    private var previewScript: String { TeleprompterService.previewScript }
 
     private var showsPrompterSurface: Bool { service.isRunning || service.isPreviewingInNotch }
     private var displayedWords: [String] {
         service.isPreviewingInNotch && !service.isRunning ? splitTextIntoWords(previewScript) : service.currentWords
     }
-    private var previewWordProgress: Double { min(7.25, Double(max(0, displayedWords.count - 1))) }
-    private var previewCharCount: Int { displayedWords.prefix(8).joined(separator: " ").count }
+    private var previewWordProgress: Double { service.previewWordProgress }
+    private var previewCharCount: Int {
+        let wordCount = min(displayedWords.count, max(0, Int(previewWordProgress)))
+        return displayedWords.prefix(wordCount).joined(separator: " ").count
+    }
 
     private var pagesList: [String] {
         if service.pages.isEmpty {
@@ -47,10 +46,17 @@ struct NotchTeleprompterView: View {
             HStack(spacing: 7) {
                 NotchIconButton(symbol: "arrow.uturn.backward", title: l10n.s.obBack, action: backFromTeleprompter)
                 if service.isPreviewingInNotch && !service.isRunning {
-                    Text("Preview")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.65))
-                        .lineLimit(1)
+                    HStack(spacing: 5) {
+                        Text("Preview")
+                        if service.guidanceMode != .wordTracking {
+                            Text("·")
+                            Text(String(format: "%.1fx", service.scrollSpeed))
+                                .monospacedDigit()
+                        }
+                    }
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.65))
+                    .lineLimit(1)
                 } else if !service.isRunning {
                     Text("Script Pages")
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
