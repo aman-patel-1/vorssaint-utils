@@ -252,7 +252,7 @@ enum ReleaseDigestTests {
                      "the frozen list names only real features")
         suite.expect(WhatsNewInfo.newFeatures(known: WhatsNewInfo.knownFeaturesValue, isSupported: { _ in true }).isEmpty,
                      "a recorded list of every feature leaves nothing new")
-        let known = AppFeature.allCases.filter { $0 != .portManager && $0 != .fanControl && $0 != .teleprompter }.map(\.rawValue)
+        let known = AppFeature.allCases.filter { $0 != .portManager && $0 != .fanControl }.map(\.rawValue)
             .joined(separator: ",")
         suite.expect(WhatsNewInfo.newFeatures(known: known, isSupported: { $0 != .fanControl }) == [.portManager],
                      "features missing from the record are new unless this Mac cannot run them")

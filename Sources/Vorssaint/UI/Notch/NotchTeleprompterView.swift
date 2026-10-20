@@ -159,7 +159,7 @@ struct NotchTeleprompterView: View {
 
                 // Speed indicator if auto-scroll
                 if service.guidanceMode != .wordTracking {
-                    Text(String(format: "%.1f w/s", service.scrollSpeed))
+                    Text(String(format: locale: .current, "%.1f w/s", service.scrollSpeed))
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.6))
                 }

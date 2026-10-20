@@ -128,7 +128,7 @@ public struct TeleprompterStrings {
         slide: "Slayt",
         prevSlide: "Önceki Slayt",
         nextSlide: "Sonraki Slayt",
-        noScript: "Metin girilmedi. Metin girmek için Metni Düzenle'ye tıklayın.",
+        noScript: "Metin girilmedi. Metin girmek için Metni Düzenle’ye tıklayın.",
         listening: "Dinleniyor...",
         paused: "Duraklatıldı",
         ready: "Hazır",
