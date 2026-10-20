@@ -233,6 +233,7 @@ struct NotchView: View {
         if floats {
             switch activity {
             case .timer: NotchCapsuleTimerStrip(service: service, size: size)
+            case .teleprompter: NotchCapsuleTeleprompterStrip(service: service, size: size)
             case .watch: NotchCapsuleWatchStrip(service: service, size: size)
             case .downloads: NotchCapsuleDownloadStrip(service: service, size: size)
             case .agents: NotchCapsuleAgentStrip(service: service, size: size)
@@ -247,6 +248,7 @@ struct NotchView: View {
             let geometry = service.compactActivityGeometry
             switch activity {
             case .timer: NotchTimerStrip(service: service, displayGeometry: geometry)
+            case .teleprompter: NotchTeleprompterStrip(service: service, displayGeometry: geometry)
             case .watch: NotchWatchStrip(service: service, displayGeometry: geometry)
             case .downloads: NotchDownloadStrip(service: service, displayGeometry: geometry)
             case .agents: NotchAgentStrip(service: service, displayGeometry: geometry)

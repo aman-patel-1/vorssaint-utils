@@ -120,9 +120,10 @@ struct DictationWaveformView: View {
     var color: Color = .red
 
     var body: some View {
+        let waveformLevels = Array(levels.suffix(20))
         HStack(alignment: .center, spacing: 2) {
-            ForEach(0..<min(20, levels.count), id: \.self) { idx in
-                let normalized = pow(levels[idx], 0.6)
+            ForEach(waveformLevels.indices, id: \.self) { idx in
+                let normalized = pow(waveformLevels[idx], 0.6)
                 RoundedRectangle(cornerRadius: 1)
                     .fill(color)
                     .frame(width: 2.5, height: max(3.5, normalized * 16))
@@ -538,7 +539,7 @@ struct TeleprompterSettings: View {
                 HStack(spacing: 12) {
                     Text("Window Height")
                         .frame(width: 110, alignment: .leading)
-                    Slider(value: $service.windowHeight, in: 100...400, step: 10)
+                    Slider(value: $service.windowHeight, in: 100...650, step: 10)
                         .onChange(of: service.windowHeight) { _, _ in
                             triggerHaptic()
                             service.savePreferences()
@@ -1380,17 +1381,17 @@ struct PageEditorDialog: View {
 
     private func insertCue(_ cue: String) {
         let tag = "[\(cue)]"
-        let caret = min(max(0, editorCaretPosition), text.count)
-
-        let needsLeadingSpace = caret > 0 && text[text.index(text.startIndex, offsetBy: caret - 1)] != " " && text[text.index(text.startIndex, offsetBy: caret - 1)] != "\n"
-        let needsTrailingSpace = caret < text.count && text[text.index(text.startIndex, offsetBy: caret)] != " " && text[text.index(text.startIndex, offsetBy: caret)] != "\n"
+        let source = text as NSString
+        let caret = min(max(0, editorCaretPosition), source.length)
+        let needsLeadingSpace = caret > 0 && source.character(at: caret - 1) != 0x20 && source.character(at: caret - 1) != 0x0A
+        let needsTrailingSpace = caret < source.length && source.character(at: caret) != 0x20 && source.character(at: caret) != 0x0A
 
         let toInsert = (needsLeadingSpace ? " " : "") + tag + (needsTrailingSpace ? " " : "")
+        let updated = source.mutableCopy() as! NSMutableString
+        updated.insert(toInsert, at: caret)
+        text = updated as String
 
-        let insertIndex = text.index(text.startIndex, offsetBy: caret)
-        text.insert(contentsOf: toInsert, at: insertIndex)
-
-        let newCaret = caret + toInsert.count
+        let newCaret = caret + (toInsert as NSString).length
         editorCaretPosition = newCaret
         caretPosition = newCaret
         triggerHaptic()
@@ -1427,19 +1428,20 @@ struct PageEditorDialog: View {
             }
             guard !effectiveText.isEmpty else { return }
 
-            let safeStart = min(segmentStart, text.count)
-            let removeStart = text.index(text.startIndex, offsetBy: safeStart)
-            let safeLen = min(segmentLength, text.count - safeStart)
-            let removeEnd = text.index(removeStart, offsetBy: safeLen)
-            text.removeSubrange(removeStart..<removeEnd)
+            let source = text as NSString
+            let safeStart = min(segmentStart, source.length)
+            let safeLen = min(segmentLength, source.length - safeStart)
+            let updated = source.mutableCopy() as! NSMutableString
+            updated.replaceCharacters(in: NSRange(location: safeStart, length: safeLen), with: "")
 
             let sep = segmentNeedsSeparator ? " " : ""
             let newSegment = sep + effectiveText
-            let insertIndex = text.index(text.startIndex, offsetBy: min(segmentStart, text.count))
-            text.insert(contentsOf: newSegment, at: insertIndex)
+            let insertIndex = min(segmentStart, updated.length)
+            updated.insert(newSegment, at: insertIndex)
+            text = updated as String
 
             let prevLen = segmentLength
-            segmentLength = newSegment.count
+            segmentLength = (newSegment as NSString).length
 
             let newChars = segmentLength - prevLen
             if newChars > 0 {
@@ -1447,7 +1449,7 @@ struct PageEditorDialog: View {
                 dictationHighlightRange = NSRange(location: highlightStart, length: newChars)
             }
 
-            let newCaret = segmentStart + segmentLength
+            let newCaret = min(segmentStart + segmentLength, (text as NSString).length)
             caretPosition = newCaret
             editorCaretPosition = newCaret
 
@@ -1470,10 +1472,11 @@ struct PageEditorDialog: View {
     }
 
     private func beginNewSegment() {
-        let caret = min(editorCaretPosition, text.count)
+        let source = text as NSString
+        let caret = min(editorCaretPosition, source.length)
         spokenSkipOffset = lastRawSpokenLength
-        let charBefore = caret > 0 ? text[text.index(text.startIndex, offsetBy: caret - 1)] : "\n"
-        segmentNeedsSeparator = !(charBefore == " " || charBefore == "\n" || caret == 0)
+        let charBefore = caret > 0 ? source.character(at: caret - 1) : 0x0A
+        segmentNeedsSeparator = !(charBefore == 0x20 || charBefore == 0x0A || caret == 0)
         segmentStart = caret
         segmentLength = 0
     }

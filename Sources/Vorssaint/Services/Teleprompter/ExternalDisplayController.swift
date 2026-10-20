@@ -10,12 +10,11 @@ import SwiftUI
 // MARK: - External Display View
 
 struct ExternalDisplayView: View {
+    @ObservedObject var service: TeleprompterService
     @ObservedObject var recognizer: SpeechRecognizer
     let words: [String]
     let script: String
     let mirrorAxis: ExternalMirrorAxis?
-    let font: NSFont
-    let highlightColor: Color
 
     var body: some View {
         ZStack {
@@ -24,12 +23,17 @@ struct ExternalDisplayView: View {
             SpeechScrollView(
                 words: words,
                 highlightedCharCount: recognizer.recognizedCharCount,
-                font: font,
-                highlightColor: highlightColor,
+                font: service.fontFamily.nsFont(ofSize: service.fontSize.pointSize * 1.5),
+                highlightColor: service.highlightColor.color,
                 onWordTap: nil,
                 smoothScroll: true,
+                cueColor: service.cueColor.color,
+                cueUnreadOpacity: service.cueBrightness.alpha * 0.35,
+                cueReadOpacity: service.cueBrightness.alpha,
                 isListening: recognizer.isListening,
-                paragraphBreakBeforeWordIndices: paragraphBreakWordIndices(in: script)
+                paragraphBreakBeforeWordIndices: service.showParagraphDividers ? paragraphBreakWordIndices(in: script) : [],
+                readingPosition: service.readingPosition,
+                showLastSpokenWords: service.showLastSpokenWords
             )
             .padding(40)
             .scaleEffect(
@@ -64,8 +68,6 @@ final class ExternalDisplayController {
         speechRecognizer: SpeechRecognizer,
         words: [String],
         script: String,
-        font: NSFont,
-        highlightColor: Color,
         mode: ExternalDisplayMode,
         mirrorAxis: ExternalMirrorAxis
     ) {
@@ -78,12 +80,11 @@ final class ExternalDisplayController {
         let screenFrame = screen.frame
 
         let content = ExternalDisplayView(
+            service: TeleprompterService.shared,
             recognizer: speechRecognizer,
             words: words,
             script: script,
-            mirrorAxis: axis,
-            font: font,
-            highlightColor: highlightColor
+            mirrorAxis: axis
         )
 
         let hostingView = NSHostingView(rootView: content)

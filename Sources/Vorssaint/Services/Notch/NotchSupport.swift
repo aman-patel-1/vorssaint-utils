@@ -826,13 +826,14 @@ enum NotchMusicStripLayout {
 }
 
 enum NotchCompactActivity: String, Identifiable {
-    case timer, watch, downloads, agents, calendar, music, keepAwake
+    case timer, teleprompter, watch, downloads, agents, calendar, music, keepAwake
 
     var id: String { rawValue }
 
     func title(_ language: AppLanguage) -> String {
         switch self {
         case .timer: return FeatureStrings.notchActivities(language).timer
+        case .teleprompter: return FeatureStrings.teleprompter(language).title
         case .watch: return FeatureStrings.notchWatch(language).title
         case .downloads: return FeatureStrings.notchFiles(language).downloadsTitle
         case .agents: return FeatureStrings.notchAgents(language).title
@@ -846,6 +847,7 @@ enum NotchCompactActivity: String, Identifiable {
     var module: NotchModule {
         switch self {
         case .timer: return .timer
+        case .teleprompter: return .teleprompter
         case .watch: return .watch
         case .downloads: return .downloads
         case .agents: return .agents
@@ -1137,6 +1139,12 @@ enum NotchCapsuleLayout {
         let content = mark + markGap(companion) + width(NotchAgentSupport.readingShape(reading), font: readingFont)
         return surface(content: content, leading: companion == .music ? artworkInset(geometry) : endPadding,
                        maximum: Maximum.activity, geometry: geometry)
+    }
+
+    /// A running teleprompter keeps its elapsed reading beside a play/pause mark.
+    static func teleprompterSurface(geometry: NotchGeometry) -> CGSize {
+        let content = symbolWidth + spacing + width("00:00", font: readingFont)
+        return surface(content: content, maximum: Maximum.activity, geometry: geometry)
     }
 
     /// An event beside what shares the capsule with it: that activity's
@@ -1781,18 +1789,21 @@ enum NotchSupport {
 
     /// Automatic order until the user chooses one of the live activities.
     static func compactActivity(timer: Bool, downloads: Bool, agents: Bool = false,
-                                calendar: Bool = false, music: Bool, keepAwake: Bool = false) -> NotchCompactActivity? {
+                                calendar: Bool = false, music: Bool, keepAwake: Bool = false,
+                                teleprompter: Bool = false) -> NotchCompactActivity? {
         compactActivities(timer: timer, downloads: downloads, agents: agents,
-                          calendar: calendar, music: music, keepAwake: keepAwake).first
+                          calendar: calendar, music: music, keepAwake: keepAwake,
+                          teleprompter: teleprompter).first
     }
 
     /// Keep Awake comes last: a session can run all day, even more than
     /// music plays, and it only says that the Mac stays awake. A watch
     /// follows the timer: the person started both and is waiting on them.
     static func compactActivities(timer: Bool, watch: Bool = false, downloads: Bool, agents: Bool,
-                                  calendar: Bool, music: Bool, keepAwake: Bool = false) -> [NotchCompactActivity] {
+                                  calendar: Bool, music: Bool, keepAwake: Bool = false,
+                                  teleprompter: Bool = false) -> [NotchCompactActivity] {
         let candidates: [(Bool, NotchCompactActivity)] = [
-            (timer, .timer), (watch, .watch), (downloads, .downloads), (agents, .agents),
+            (timer, .timer), (teleprompter, .teleprompter), (watch, .watch), (downloads, .downloads), (agents, .agents),
             (calendar, .calendar), (music, .music), (keepAwake, .keepAwake)
         ]
         return candidates.compactMap { $0.0 ? $0.1 : nil }

@@ -19,7 +19,24 @@ final class TeleprompterService: ObservableObject {
     @Published var currentPageIndex: Int = 0
     @Published var readPages: Set<Int> = []
 
-    @Published var guidanceMode: GuidanceMode = .wordTracking
+    @Published var guidanceMode: GuidanceMode = .wordTracking {
+        didSet {
+            guard oldValue != guidanceMode, isRunning else { return }
+            autoScrollTimer?.invalidate()
+            autoScrollTimer = nil
+            speechRecognizer.stop()
+            if isPaused {
+                restartSpeechOnResume = guidanceMode != .classic
+                return
+            }
+            if guidanceMode == .classic {
+                startAutoScrollTimer()
+            } else {
+                speechRecognizer.start(with: currentScript)
+                startAutoScrollTimerIfNeeded()
+            }
+        }
+    }
     @Published var overlayMode: TeleprompterOverlayMode = .notch
     @Published var scrollSpeed: Double = 2.5
     @Published var fontSize: TeleprompterFontSizePreset = .sm
@@ -62,6 +79,7 @@ final class TeleprompterService: ObservableObject {
     private let hotkey = QuickToolHotkey(id: 90)
     private var sleepAssertionID: IOPMAssertionID = 0
     private var elapsedTimer: Timer?
+    private var restartSpeechOnResume = false
 
     @Published var sessionStartTime: Date? = nil
     @Published var elapsedSeconds: Int = 0
@@ -184,7 +202,7 @@ final class TeleprompterService: ObservableObject {
         let w = defaults.double(forKey: DefaultsKey.teleprompterWidth)
         if w >= 310 && w <= 500 { windowWidth = w } else if w > 500 { windowWidth = 500 } else if w > 0 { windowWidth = 310 }
         let h = defaults.double(forKey: DefaultsKey.teleprompterHeight)
-        if h >= 100 && h <= 400 { windowHeight = h } else if h > 400 { windowHeight = 400 } else if h > 0 { windowHeight = 100 }
+        if h >= 100 && h <= 650 { windowHeight = h } else if h > 650 { windowHeight = 650 } else if h > 0 { windowHeight = 100 }
         if let posStr = defaults.string(forKey: DefaultsKey.teleprompterReadingPosition),
            let rp = TeleprompterReadingPosition(rawValue: posStr) {
             readingPosition = rp
@@ -338,13 +356,19 @@ final class TeleprompterService: ObservableObject {
     // MARK: - Director Server Command Handlers
 
     private func handleDirectorSetText(_ newText: String) {
+        guard isRunning else { return }
         currentScript = newText
         words = splitTextIntoWords(newText)
-        speechRecognizer.start(with: newText)
+        if isRunning && guidanceMode != .classic && !isPaused {
+            speechRecognizer.start(with: newText)
+        } else if isRunning && guidanceMode != .classic {
+            restartSpeechOnResume = true
+        }
         updateBroadcasts()
     }
 
     private func handleDirectorUpdateText(_ newText: String, charCount: Int) {
+        guard isRunning else { return }
         currentScript = newText
         words = splitTextIntoWords(newText)
         speechRecognizer.updateText(newText, preservingCharCount: charCount)
@@ -415,6 +439,7 @@ final class TeleprompterService: ObservableObject {
         guard !isRunning else { return }
         isRunning = true
         isPaused = false
+        restartSpeechOnResume = false
         timerWordProgress = 0
         sessionStartTime = Date()
         elapsedSeconds = 0
@@ -439,11 +464,12 @@ final class TeleprompterService: ObservableObject {
         let script = currentScript
         words = splitTextIntoWords(script)
 
-        if guidanceMode == .wordTracking {
-            speechRecognizer.start(with: script)
+        if guidanceMode == .classic {
+            speechRecognizer.stop()
+            startAutoScrollTimer()
         } else {
             speechRecognizer.start(with: script)
-            startAutoScrollTimer()
+            startAutoScrollTimerIfNeeded()
         }
 
         let hasNext = currentPageIndex < pages.count - 1
@@ -476,8 +502,6 @@ final class TeleprompterService: ObservableObject {
                 speechRecognizer: speechRecognizer,
                 words: words,
                 script: script,
-                font: fontFamily.nsFont(ofSize: fontSize.pointSize * 1.5),
-                highlightColor: highlightColor.color,
                 mode: externalDisplayMode,
                 mirrorAxis: externalMirrorAxis
             )
@@ -509,15 +533,22 @@ final class TeleprompterService: ObservableObject {
     func resume() {
         guard isRunning, isPaused else { return }
         isPaused = false
-        speechRecognizer.resume()
-        if guidanceMode != .wordTracking {
+        if guidanceMode == .classic {
             startAutoScrollTimer()
+        } else if restartSpeechOnResume {
+            speechRecognizer.start(with: currentScript)
+            restartSpeechOnResume = false
+            startAutoScrollTimerIfNeeded()
+        } else {
+            speechRecognizer.resume()
+            startAutoScrollTimerIfNeeded()
         }
     }
 
     func stop() {
         isRunning = false
         isPaused = false
+        restartSpeechOnResume = false
         autoScrollTimer?.invalidate()
         autoScrollTimer = nil
         elapsedTimer?.invalidate()
@@ -569,7 +600,18 @@ final class TeleprompterService: ObservableObject {
         let script = currentScript
         words = splitTextIntoWords(script)
         timerWordProgress = 0
-        speechRecognizer.start(with: script)
+        if !isRunning || isPaused {
+            speechRecognizer.stop()
+            if isRunning && isPaused && guidanceMode != .classic {
+                restartSpeechOnResume = true
+            }
+        } else if guidanceMode == .classic {
+            speechRecognizer.stop()
+            startAutoScrollTimer()
+        } else {
+            speechRecognizer.start(with: script)
+            startAutoScrollTimerIfNeeded()
+        }
 
         let hasNext = currentPageIndex < pages.count - 1
         if remoteServerEnabled {
@@ -590,8 +632,6 @@ final class TeleprompterService: ObservableObject {
                 speechRecognizer: speechRecognizer,
                 words: words,
                 script: script,
-                font: fontFamily.nsFont(ofSize: fontSize.pointSize * 1.5),
-                highlightColor: highlightColor.color,
                 mode: externalDisplayMode,
                 mirrorAxis: externalMirrorAxis
             )
@@ -638,6 +678,10 @@ final class TeleprompterService: ObservableObject {
                 self.tickAutoScroll()
             }
         }
+    }
+
+    private func startAutoScrollTimerIfNeeded() {
+        if guidanceMode != .wordTracking { startAutoScrollTimer() }
     }
 
     private func tickAutoScroll() {

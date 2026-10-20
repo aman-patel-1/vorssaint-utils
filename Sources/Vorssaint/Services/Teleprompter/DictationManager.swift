@@ -13,7 +13,7 @@ import Speech
 @MainActor
 final class DictationManager: ObservableObject {
     @Published var isRecording: Bool = false
-    @Published var audioLevels: [CGFloat] = Array(repeating: 0, count: 30)
+    @Published var audioLevels: [CGFloat] = []
     @Published var error: String?
 
     /// Called on main thread with the latest recognized text for the current segment
@@ -27,16 +27,19 @@ final class DictationManager: ObservableObject {
     private var audioEngine = AVAudioEngine()
     private var configurationChangeObserver: Any?
     private var suppressConfigChange: Bool = false
+    private var hasInstalledTap = false
     private let requestLock = NSLock()
 
     private var sessionGeneration: Int = 0
+    private var recognitionTaskGeneration: Int = 0
 
     // MARK: - Lifecycle
 
     func start() {
         guard !isRecording else { return }
-        cleanup()
         sessionGeneration += 1
+        let generation = sessionGeneration
+        cleanup()
         error = nil
 
         // Check microphone authorization
@@ -48,10 +51,11 @@ final class DictationManager: ObservableObject {
             AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
+                        guard let self, self.sessionGeneration == generation else { return }
                         if granted {
-                            self?.requestSpeechAuthAndBegin()
+                            self.requestSpeechAuthAndBegin(for: generation)
                         } else {
-                            self?.error = "Microphone access denied."
+                            self.error = "Microphone access denied."
                         }
                     }
                 }
@@ -63,10 +67,11 @@ final class DictationManager: ObservableObject {
             break
         }
 
-        requestSpeechAuthAndBegin()
+        requestSpeechAuthAndBegin(for: generation)
     }
 
     func stop() {
+        sessionGeneration += 1
         isRecording = false
         cleanup()
     }
@@ -86,25 +91,30 @@ final class DictationManager: ObservableObject {
 
         if audioEngine.isRunning {
             audioEngine.stop()
+        }
+        if hasInstalledTap {
             audioEngine.inputNode.removeTap(onBus: 0)
+            hasInstalledTap = false
         }
 
         recognitionTask?.cancel()
         recognitionTask = nil
+        recognitionTaskGeneration += 1
 
-        audioLevels = Array(repeating: 0, count: 30)
+        audioLevels.removeAll(keepingCapacity: true)
     }
 
     // MARK: - Speech Authorization & Setup
 
-    private func requestSpeechAuthAndBegin() {
+    private func requestSpeechAuthAndBegin(for generation: Int) {
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self else { return }
+                    guard self.sessionGeneration == generation else { return }
                     switch status {
                     case .authorized:
-                        self.beginSession()
+                        self.beginSession(for: generation)
                     case .denied, .restricted:
                         self.error = "Speech recognition access denied. Enable Speech Recognition in System Settings."
                         self.isRecording = false
@@ -118,8 +128,8 @@ final class DictationManager: ObservableObject {
         }
     }
 
-    private func beginSession() {
-        let currentGen = sessionGeneration
+    private func beginSession(for currentGen: Int) {
+        guard sessionGeneration == currentGen else { return }
         let localeId = UserDefaults.standard.string(forKey: DefaultsKey.teleprompterSpeechLanguage) ?? "en-US"
         let locale = Locale(identifier: localeId)
 
@@ -160,6 +170,7 @@ final class DictationManager: ObservableObject {
         var framesSinceWaveformUpdate = waveformFrameInterval
 
         inputNode.removeTap(onBus: 0)
+        hasInstalledTap = true
         inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: captureFormat) { [weak self, requestLock] buffer, _ in
             guard let self else { return }
             requestLock.lock()
@@ -197,11 +208,14 @@ final class DictationManager: ObservableObject {
             return
         }
 
+        recognitionTaskGeneration += 1
+        let taskGeneration = recognitionTaskGeneration
         recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, taskError in
             guard let self else { return }
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    guard self.sessionGeneration == currentGen else { return }
+                    guard self.sessionGeneration == currentGen,
+                          self.recognitionTaskGeneration == taskGeneration else { return }
 
                     if let result {
                         let spoken = result.bestTranscription.formattedString
@@ -226,6 +240,7 @@ final class DictationManager: ObservableObject {
 
         recognitionTask?.cancel()
         recognitionTask = nil
+        recognitionTaskGeneration += 1
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
@@ -239,11 +254,14 @@ final class DictationManager: ObservableObject {
         requestLock.unlock()
 
         let currentGen = sessionGeneration
+        recognitionTaskGeneration += 1
+        let taskGeneration = recognitionTaskGeneration
         recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, taskError in
             guard let self else { return }
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    guard self.sessionGeneration == currentGen else { return }
+                    guard self.sessionGeneration == currentGen,
+                          self.recognitionTaskGeneration == taskGeneration else { return }
 
                     if let result {
                         let spoken = result.bestTranscription.formattedString
@@ -282,8 +300,11 @@ final class DictationManager: ObservableObject {
                     MainActor.assumeIsolated {
                         self.suppressConfigChange = false
                         if self.isRecording {
+                            let generation = self.sessionGeneration
                             self.cleanup()
-                            self.start()
+                            guard self.sessionGeneration == generation else { return }
+                            self.isRecording = false
+                            self.beginSession(for: generation)
                         }
                     }
                 }

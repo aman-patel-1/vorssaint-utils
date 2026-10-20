@@ -429,9 +429,92 @@ private struct NotchCapsuleCompanionMark: View {
                     NotchCapsuleCalendarStrip.clockMark(countdown, now: context.date)
                 }
             }
-        case .timer, .keepAwake, .watch:
+        case .timer, .keepAwake, .watch, .teleprompter:
             EmptyView()
         }
+    }
+}
+
+/// Elapsed reading time and a play/pause control while the teleprompter runs.
+struct NotchCapsuleTeleprompterStrip: View {
+    @ObservedObject var service: NotchService
+    let size: CGSize
+    var displayGeometry: NotchGeometry? = nil
+    @ObservedObject private var prompter = TeleprompterService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    private var geometry: NotchGeometry { displayGeometry ?? service.geometry }
+
+    var body: some View {
+        NotchCapsuleRow(size: size, geometry: geometry) {
+            HStack(spacing: CapsuleLayout.spacing) {
+                Button(action: prompter.toggle) {
+                    NotchCapsuleSymbol(name: prompter.isPaused ? "play.fill" : "pause.fill", tint: .indigo)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(prompter.isPaused ? FeatureStrings.teleprompter(l10n.language).resume
+                                                       : FeatureStrings.teleprompter(l10n.language).pause)
+                Button { service.openActivity(.teleprompter) } label: {
+                    Text(prompter.formattedElapsedTime)
+                        .font(Font(CapsuleLayout.readingFont as CTFont))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(FeatureStrings.teleprompter(l10n.language).title)
+                .accessibilityValue(prompter.formattedElapsedTime)
+            }
+        }
+        .accessibilityHint(FeatureStrings.notch(l10n.language).open)
+    }
+}
+
+/// The island strip keeps the elapsed time beside a live pause/resume control.
+struct NotchTeleprompterStrip: View {
+    @ObservedObject var service: NotchService
+    var displayGeometry: NotchGeometry? = nil
+    @ObservedObject private var prompter = TeleprompterService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    private var geometry: NotchGeometry { displayGeometry ?? service.compactActivityGeometry }
+    private var textSize: CGFloat { NotchTimerSupport.stripTextSize(height: geometry.compactActivityContentHeight) }
+    private var iconSize: CGFloat { NotchTimerSupport.stripIconSize(height: geometry.compactActivityContentHeight) }
+    private var inset: CGFloat { geometry.compactActivityEdgeInset(boxHeight: iconSize, radius: iconSize / 2) }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button(action: prompter.toggle) {
+                Image(systemName: prompter.isPaused ? "play.fill" : "pause.fill")
+                    .font(.system(size: iconSize, weight: .medium))
+                    .foregroundStyle(.indigo)
+                    .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
+                           alignment: .leading)
+                    .padding(.leading, inset)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(prompter.isPaused ? FeatureStrings.teleprompter(l10n.language).resume
+                                                   : FeatureStrings.teleprompter(l10n.language).pause)
+            Color.clear.frame(width: geometry.compactActivityCameraGap)
+            Button { service.openActivity(.teleprompter) } label: {
+                Text(prompter.formattedElapsedTime)
+                    .font(.system(size: textSize, weight: .medium, design: .monospaced))
+                    .monospacedDigit()
+                    .foregroundStyle(.indigo)
+                    .lineLimit(1)
+                    .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
+                           alignment: .trailing)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(FeatureStrings.teleprompter(l10n.language).title)
+            .accessibilityValue(prompter.formattedElapsedTime)
+        }
+        .frame(height: geometry.compactActivityContentHeight)
+        .padding(.horizontal, geometry.compactActivityHorizontalPadding)
+        .padding(.top, geometry.compactActivityTopPadding)
+        .accessibilityHint(FeatureStrings.notch(l10n.language).open)
     }
 }
 

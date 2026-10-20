@@ -509,6 +509,10 @@ final class NotchService: ObservableObject {
         NotchKeepAwakeSupport.showsActivity() && KeepAwakeManager.shared.isActive
     }
 
+    var hasTeleprompterActivity: Bool {
+        modules.contains(.teleprompter) && TeleprompterService.shared.isRunning
+    }
+
     var compactActivity: NotchCompactActivity? {
         // A new song waiting for its notice is not drawn yet.
         activitySelection.current(available: awaitsTrackNotice ? compactActivities.filter { $0 != .music } : compactActivities)
@@ -517,7 +521,8 @@ final class NotchService: ObservableObject {
     var compactActivities: [NotchCompactActivity] {
         NotchSupport.compactActivities(timer: hasTimerActivity, watch: hasWatchActivity, downloads: hasDownloadActivity,
                                       agents: hasAgentActivity, calendar: hasCalendarActivity,
-                                      music: hasMusicActivity, keepAwake: hasKeepAwakeActivity)
+                                      music: hasMusicActivity, keepAwake: hasKeepAwakeActivity,
+                                      teleprompter: hasTeleprompterActivity)
     }
 
     var showsCompactActivityPicker: Bool {
@@ -633,6 +638,8 @@ final class NotchService: ObservableObject {
         case .timer:
             return geometry.compactTimerGeometry(showsDownloads: companion == .downloads,
                                                  wing: timerStripWing(for: companion, in: geometry))
+        case .teleprompter:
+            return geometry.compactTimerGeometry(showsDownloads: false, wing: teleprompterStripWing(in: geometry))
         case .downloads:
             let name = NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name
             return geometry.compactDownloadGeometry(wing: NotchDownloadSupport.compactWing(for: name, in: geometry))
@@ -715,6 +722,18 @@ final class NotchService: ObservableObject {
             .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
         ]).width.rounded(.up) + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
         return max(reading, companionMarkWidth(companion, in: provisional)) + NotchTimerSupport.stripCameraGap
+    }
+
+    private func teleprompterStripWing(in geometry: NotchGeometry) -> CGFloat {
+        let provisional = geometry.compactTimerGeometry(showsDownloads: false,
+                                                        wing: NotchTimerSupport.stripWingRange.lowerBound)
+        let size = NotchTimerSupport.stripTextSize(height: provisional.compactActivityContentHeight)
+        let reading = ("00:00" as NSString).size(withAttributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
+        ]).width.rounded(.up) + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
+        return max(reading, NotchTimerSupport.stripIconSize(height: provisional.compactActivityContentHeight)
+                   + provisional.compactActivityEdgeInset(boxHeight: 13, radius: 6.5))
+            + NotchTimerSupport.stripCameraGap
     }
 
     /// The width of the mark at a strip's left end, the timer's own without a
@@ -1019,6 +1038,8 @@ final class NotchService: ObservableObject {
             return layout.musicSurface(title: named
                                         ? playback?.track.title ?? FeatureStrings.radialMenu(language).mediaNowPlaying : nil,
                                        geometry: geometry)
+        case .teleprompter:
+            return layout.teleprompterSurface(geometry: geometry)
         case .timer:
             let timer = NotchTimerService.shared
             return layout.timerSurface(reading: NotchTimerSupport.compactText(for: timer.session, at: timer.now,
@@ -3839,6 +3860,18 @@ final class NotchService: ObservableObject {
             NotchTimerService.shared.$session.removeDuplicates().receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
                     self?.syncMenuSpaceMonitoring()
+                    self?.objectWillChange.send()
+                    self?.refreshPresentation()
+                }.store(in: &subscriptions)
+        }
+        if modules.contains(.teleprompter) {
+            let prompter = TeleprompterService.shared
+            Publishers.CombineLatest3(prompter.$isRunning, prompter.$isPaused, prompter.$elapsedSeconds)
+                .removeDuplicates { left, right in
+                    left.0 == right.0 && left.1 == right.1 && left.2 == right.2
+                }
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
                     self?.objectWillChange.send()
                     self?.refreshPresentation()
                 }.store(in: &subscriptions)

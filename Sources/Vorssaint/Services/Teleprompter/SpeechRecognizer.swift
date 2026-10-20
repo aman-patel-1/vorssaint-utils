@@ -30,7 +30,7 @@ final class SpeechRecognizer: ObservableObject {
     @Published var isListening: Bool = false
     @Published var isStarting: Bool = false
     @Published var error: String?
-    @Published var audioLevels: [CGFloat] = Array(repeating: 0, count: 30)
+    @Published var audioLevels: [CGFloat] = []
     @Published var lastSpokenText: String = ""
     @Published var shouldDismiss: Bool = false
     @Published var shouldAdvancePage: Bool = false

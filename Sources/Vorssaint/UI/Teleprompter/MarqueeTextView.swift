@@ -277,13 +277,26 @@ struct WordFlowLayout: View {
         return ratio > 1.5 ? 2 : 8
     }
 
-    private static var _cacheKey: String = ""
+    private struct LayoutCacheKey: Equatable {
+        let words: [String]
+        let fontName: String
+        let fontSize: CGFloat
+        let width: Int
+        let paragraphBreaks: [Int]
+    }
+
+    private static var _cacheKey: LayoutCacheKey?
     private static var _cachedItems: [WordItem] = []
     private static var _cachedLines: [[WordItem]] = []
 
     private func cachedLayout() -> ([WordItem], [[WordItem]]) {
-        let paragraphKey = paragraphBreakBeforeWordIndices.sorted().map(String.init).joined(separator: ",")
-        let key = "\(words.count)|\(words.first ?? "")|\(words.last ?? "")|\(font.fontName)|\(font.pointSize)|\(Int(containerWidth))|\(paragraphKey)"
+        let key = LayoutCacheKey(
+            words: words,
+            fontName: font.fontName,
+            fontSize: font.pointSize,
+            width: Int(containerWidth),
+            paragraphBreaks: paragraphBreakBeforeWordIndices.sorted()
+        )
         if key == Self._cacheKey {
             return (Self._cachedItems, Self._cachedLines)
         }

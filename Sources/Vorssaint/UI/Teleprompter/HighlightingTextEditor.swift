@@ -74,13 +74,16 @@ struct HighlightingTextEditor: NSViewRepresentable {
             textView.selectedRanges = selectedRanges
             context.coordinator.applyHighlighting(textView)
         }
+        if context.coordinator.applyConfigurationIfNeeded(to: textView) {
+            context.coordinator.applyHighlighting(textView)
+        }
         updateWritingDirection(textView, text: text)
 
-        if let range = highlightRange, range.location + range.length <= textView.string.count {
+        if let range = highlightRange, range.location + range.length <= (textView.string as NSString).length {
             context.coordinator.applyBumpHighlight(textView, range: range)
         }
 
-        if let pos = caretPosition, pos <= textView.string.count {
+        if let pos = caretPosition, pos <= (textView.string as NSString).length {
             let caretRange = NSRange(location: pos, length: 0)
             textView.setSelectedRange(caretRange)
             textView.scrollRangeToVisible(caretRange)
@@ -132,6 +135,21 @@ struct HighlightingTextEditor: NSViewRepresentable {
         }
 
         private var bumpTimer: Timer?
+        private var lastFont: NSFont?
+        private var lastCueColor: NSColor?
+        private var lastCueAlpha: CGFloat?
+
+        @discardableResult
+        func applyConfigurationIfNeeded(to textView: NSTextView) -> Bool {
+            textView.font = parent.font
+            guard lastFont != parent.font || lastCueColor != parent.cueColor || lastCueAlpha != parent.cueAlpha else {
+                return false
+            }
+            lastFont = parent.font
+            lastCueColor = parent.cueColor
+            lastCueAlpha = parent.cueAlpha
+            return true
+        }
 
         func applyBumpHighlight(_ textView: NSTextView, range: NSRange) {
             guard let textStorage = textView.textStorage else { return }

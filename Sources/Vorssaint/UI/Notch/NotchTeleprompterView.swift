@@ -311,9 +311,10 @@ struct NotchTeleprompterView: View {
 
                 // Live Audio Waveform
                 if service.isRunning && !service.isPaused {
+                    let waveformLevels = Array(recognizer.audioLevels.suffix(20))
                     HStack(spacing: 2) {
-                        ForEach(0..<min(20, recognizer.audioLevels.count), id: \.self) { idx in
-                            let lvl = recognizer.audioLevels[idx]
+                        ForEach(waveformLevels.indices, id: \.self) { idx in
+                            let lvl = waveformLevels[idx]
                             let normalized = pow(lvl, 0.6)
                             RoundedRectangle(cornerRadius: 1)
                                 .fill(service.highlightColor.color.opacity(0.85))
@@ -472,7 +473,7 @@ struct NotchTeleprompterView: View {
     private func previewSnippet(_ text: String) -> String {
         let clean = text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
         if clean.count > 80 {
-            return clean.prefix(80) + "..."
+            return String(clean.prefix(80)) + "..."
         }
         return clean
     }

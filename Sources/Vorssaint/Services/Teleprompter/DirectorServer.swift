@@ -4,6 +4,7 @@
 
 import Foundation
 import Network
+import Security
 
 // MARK: - Director State (App → Web)
 
@@ -33,6 +34,8 @@ final class DirectorServer {
     private var httpListener: NWListener?
     private var wsListener: NWListener?
     private var wsConnections: [NWConnection] = []
+    private var authenticatedConnections: Set<ObjectIdentifier> = []
+    private var authToken: String?
     private var broadcastTimer: Timer?
 
     // Content state
@@ -50,17 +53,18 @@ final class DirectorServer {
 
     var httpPort: UInt16 {
         let saved = UserDefaults.standard.integer(forKey: DefaultsKey.teleprompterDirectorServerPort)
-        return saved > 1024 && saved < 65535 ? UInt16(saved) : 8766
+        return saved > 1024 && saved < 65535 ? UInt16(saved) : 7575
     }
 
     var wsPort: UInt16 { httpPort + 1 }
     var isRunning: Bool { httpListener != nil }
-    var connectedClients: Int { wsConnections.count }
+    var connectedClients: Int { authenticatedConnections.count }
 
     // MARK: - Lifecycle
 
     func start() {
         stop()
+        authToken = Self.generateToken()
         startHTTPListener()
         startWSListener()
     }
@@ -76,6 +80,8 @@ final class DirectorServer {
 
         for conn in wsConnections { conn.cancel() }
         wsConnections.removeAll()
+        authenticatedConnections.removeAll()
+        authToken = nil
         contentActive = false
     }
 
@@ -132,10 +138,18 @@ final class DirectorServer {
     }
 
     private func buildHTTPResponse() -> Data {
-        let html = Self.generateHTML(wsPort: wsPort)
+        let html = Self.generateHTML(wsPort: wsPort, authToken: authToken ?? "")
         let body = Data(html.utf8)
-        let header = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: \(body.count)\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n"
+        let header = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: \(body.count)\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n"
         return Data(header.utf8) + body
+    }
+
+    private static func generateToken() -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else {
+            return UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        }
+        return bytes.map { String(format: "%02x", $0) }.joined()
     }
 
     // MARK: - WebSocket Server
@@ -160,13 +174,20 @@ final class DirectorServer {
     }
 
     private func handleWSConnection(_ conn: NWConnection) {
+        guard wsConnections.count < 5 else { conn.cancel(); return }
         conn.start(queue: .main)
         wsConnections.append(conn)
         receiveWSMessage(conn)
+        let identifier = ObjectIdentifier(conn)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self, weak conn] in
+            guard let self, let conn, !self.authenticatedConnections.contains(identifier) else { return }
+            conn.cancel()
+        }
 
         conn.stateUpdateHandler = { [weak self] state in
             switch state {
             case .failed, .cancelled:
+                self?.authenticatedConnections.remove(ObjectIdentifier(conn))
                 self?.wsConnections.removeAll { $0 === conn }
             default: break
             }
@@ -177,16 +198,25 @@ final class DirectorServer {
         conn.receiveMessage { [weak self] data, _, _, error in
             if error != nil { conn.cancel(); return }
             if let data {
-                self?.handleIncomingMessage(data)
+                self?.handleIncomingMessage(data, from: conn)
             }
             self?.receiveWSMessage(conn)
         }
     }
 
-    private func handleIncomingMessage(_ data: Data) {
+    private func handleIncomingMessage(_ data: Data, from conn: NWConnection) {
         guard let command = try? JSONDecoder().decode(DirectorCommand.self, from: data) else { return }
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            let identifier = ObjectIdentifier(conn)
+            guard self.authenticatedConnections.contains(identifier) else {
+                guard command.type == "auth", command.text == self.authToken else {
+                    conn.cancel()
+                    return
+                }
+                self.authenticatedConnections.insert(identifier)
+                return
+            }
             switch command.type {
             case "setText":
                 if let text = command.text {
@@ -258,14 +288,14 @@ final class DirectorServer {
         let meta = NWProtocolWebSocket.Metadata(opcode: .binary)
         let context = NWConnection.ContentContext(identifier: "director", metadata: [meta])
 
-        for conn in wsConnections {
+        for conn in wsConnections where authenticatedConnections.contains(ObjectIdentifier(conn)) {
             conn.send(content: data, contentContext: context, completion: .contentProcessed { _ in })
         }
     }
 
     // MARK: - HTML Page Generation
 
-    nonisolated static func generateHTML(wsPort: UInt16) -> String {
+    nonisolated static func generateHTML(wsPort: UInt16, authToken: String) -> String {
         """
         <!DOCTYPE html>
         <html lang="en">
@@ -469,6 +499,7 @@ final class DirectorServer {
 
             <script>
                 const wsUrl = `ws://${window.location.hostname}:\(wsPort)`;
+                const AUTH_TOKEN = "\(authToken)";
                 let ws = null;
                 let currentWords = [];
                 let currentHighlightedChars = 0;
@@ -478,6 +509,7 @@ final class DirectorServer {
                     ws.binaryType = "arraybuffer";
 
                     ws.onopen = () => {
+                        ws.send(JSON.stringify({type: 'auth', text: AUTH_TOKEN}));
                         document.getElementById('dot').className = 'dot';
                         document.getElementById('statusText').innerText = 'Connected to Presenter';
                     };

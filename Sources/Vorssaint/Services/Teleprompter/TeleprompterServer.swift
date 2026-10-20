@@ -37,7 +37,10 @@ final class TeleprompterServer: ObservableObject {
     private var timerWordProgress: Double = 0
     private var contentActive: Bool = false
 
-    var httpPort: UInt16 = 7373
+    var httpPort: UInt16 {
+        let saved = UserDefaults.standard.integer(forKey: DefaultsKey.teleprompterRemoteServerPort)
+        return saved > 1024 && saved < 65535 ? UInt16(saved) : 7373
+    }
     var wsPort: UInt16 { httpPort + 1 }
     var isRunning: Bool { httpListener != nil }
     var connectedClients: Int { wsConnections.count }
