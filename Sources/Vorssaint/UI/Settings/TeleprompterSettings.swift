@@ -72,29 +72,32 @@ private struct TeleprompterPlacementPreview: View {
     private var sampleWidth: CGFloat {
         let range = TeleprompterService.windowWidthRange(for: mode)
         let progress = (width - range.lowerBound) / max(1, range.upperBound - range.lowerBound)
-        return CGFloat(240 + min(1, max(0, progress)) * 120)
+        return CGFloat(132 + min(1, max(0, progress)) * 32)
     }
 
     private var sampleHeight: CGFloat {
         let range = TeleprompterService.windowHeightRange(for: mode)
         let progress = (height - range.lowerBound) / max(1, range.upperBound - range.lowerBound)
-        return CGFloat(58 + min(1, max(0, progress)) * 24)
+        return CGFloat(48 + min(1, max(0, progress)) * 14)
     }
 
     var body: some View {
         HStack {
             Spacer(minLength: 0)
             VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 7) {
-                    Image(systemName: mode.icon)
-                        .foregroundStyle(highlightColor)
-                    Text(mode.label)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.9))
+                HStack(spacing: 3) {
+                    if mode == .floating {
+                        Circle().fill(Color.red.opacity(0.7)).frame(width: 4, height: 4)
+                        Circle().fill(Color.yellow.opacity(0.7)).frame(width: 4, height: 4)
+                        Circle().fill(Color.green.opacity(0.7)).frame(width: 4, height: 4)
+                    } else {
+                        Capsule().fill(Color.white.opacity(0.2))
+                            .frame(width: 16, height: 3)
+                    }
                     Spacer(minLength: 4)
                     if elapsedTime {
                         Text("00:12")
-                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .font(.system(size: 7, weight: .medium, design: .monospaced))
                             .foregroundStyle(.white.opacity(0.55))
                     }
                     if autoNextPage {
@@ -106,17 +109,22 @@ private struct TeleprompterPlacementPreview: View {
                         .foregroundStyle(.white.opacity(0.7))
                     }
                 }
-                HStack(spacing: 4) {
-                    Text("A quick brown fox jumps over the quiet fence.")
-                        .foregroundStyle(highlightColor)
+                .frame(height: 6)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 3) {
+                        Text("A quick brown fox jumps")
+                            .foregroundStyle(highlightColor)
+                        Text("over the quiet fence")
+                            .foregroundStyle(.white.opacity(0.58))
+                    }
                     Text("Then follows the winding path…")
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(.white.opacity(0.42))
                 }
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 7, weight: .medium))
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 8)
             .frame(width: sampleWidth, height: sampleHeight)
             .background(.black.opacity(0.94), in: RoundedRectangle(
                 cornerRadius: mode == .notch ? 22 : 14, style: .continuous
@@ -127,10 +135,65 @@ private struct TeleprompterPlacementPreview: View {
             )
             Spacer(minLength: 0)
         }
-        .frame(height: sampleHeight + 16)
-        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
+        .frame(height: sampleHeight + 8)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Static \(mode.label) preview")
+        .accessibilityLabel("Static \(mode.label) example")
+        .accessibilityHidden(true)
+    }
+}
+
+private struct TeleprompterAppearanceOption: View {
+    let mode: TeleprompterOverlayMode
+    let isSelected: Bool
+    let highlightColor: Color
+    let autoNextPage: Bool
+    let elapsedTime: Bool
+    let width: Double
+    let height: Double
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: mode.icon)
+                        .foregroundStyle(isSelected ? highlightColor : .secondary)
+                    Text(mode.label)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(highlightColor)
+                            .font(.system(size: 12))
+                    }
+                }
+                TeleprompterPlacementPreview(
+                    mode: mode,
+                    highlightColor: highlightColor,
+                    autoNextPage: autoNextPage,
+                    elapsedTime: elapsedTime,
+                    width: width,
+                    height: height
+                )
+            }
+            .padding(9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                isSelected ? highlightColor.opacity(0.10) : Color.primary.opacity(0.035),
+                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(isSelected ? highlightColor.opacity(0.58) : Color.primary.opacity(0.10),
+                                  lineWidth: isSelected ? 1.5 : 1)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(mode.label) teleprompter appearance")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -397,32 +460,38 @@ struct TeleprompterSettings: View {
                         .disabled(!teleprompterEnabled)
                 }
 
-                Picker("Window Placement", selection: Binding(
-                    get: { service.overlayMode },
-                    set: { service.selectOverlayMode($0) }
-                )) {
-                    ForEach(TeleprompterOverlayMode.allCases) { mode in
-                        Label(mode.label, systemImage: mode.icon).tag(mode)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Teleprompter Appearance")
+                        .font(.headline)
+
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
+                               spacing: 8) {
+                        ForEach(TeleprompterOverlayMode.allCases) { mode in
+                            TeleprompterAppearanceOption(
+                                mode: mode,
+                                isSelected: service.overlayMode == mode,
+                                highlightColor: service.highlightColor.color,
+                                autoNextPage: service.autoNextPage,
+                                elapsedTime: service.showElapsedTime,
+                                width: service.windowWidth,
+                                height: service.windowHeight
+                            ) {
+                                guard service.overlayMode != mode else {
+                                    service.previewInNotch(autoCloseAfter: 4)
+                                    return
+                                }
+                                service.selectOverlayMode(mode)
+                            }
+                        }
                     }
+                    .disabled(!teleprompterEnabled)
                 }
-                .pickerStyle(.segmented)
-                .help("Choose where the preview and next teleprompter run appear.")
-                .disabled(!teleprompterEnabled)
                 .onChange(of: service.overlayMode) { _, _ in
                     triggerHaptic()
                     service.savePreferences()
                     service.applyOverlayPlacement()
                     if !service.isRunning { service.previewInNotch(autoCloseAfter: 4) }
                 }
-
-                TeleprompterPlacementPreview(
-                    mode: service.overlayMode,
-                    highlightColor: service.highlightColor.color,
-                    autoNextPage: service.autoNextPage,
-                    elapsedTime: service.showElapsedTime,
-                    width: service.windowWidth,
-                    height: service.windowHeight
-                )
             } header: {
                 Text(strings.title)
             }
@@ -535,18 +604,6 @@ struct TeleprompterSettings: View {
                     service.savePreferences()
                 }
 
-                HStack {
-                    Spacer()
-                    Button {
-                        service.previewInNotch()
-                        triggerHaptic()
-                    } label: {
-                        Label(service.overlayMode == .floating ? "Preview Floating Window" : "Preview in Notch",
-                              systemImage: service.overlayMode == .floating
-                                  ? "macwindow" : "rectangle.topthird.inset.filled")
-                    }
-                    .help("Show a live, animated sample on the selected teleprompter surface using the current settings. This does not start a reading session.")
-                }
             } header: {
                 Text("Appearance")
             }
