@@ -213,6 +213,7 @@ enum DefaultsKey {
     static let teleprompterScriptText = "teleprompterScriptText"
     static let teleprompterGuidanceMode = "teleprompterGuidanceMode"
     static let teleprompterOverlayMode = "teleprompterOverlayMode"
+    static let teleprompterPreviewOverlayMode = "teleprompterPreviewOverlayMode"
     static let teleprompterScrollSpeed = "teleprompterScrollSpeed"
     static let teleprompterFontSize = "teleprompterFontSize"
     static let teleprompterFontFamily = "teleprompterFontFamily"
@@ -2004,6 +2005,7 @@ enum Defaults {
         DefaultsKey.teleprompterEnabled: true,
         DefaultsKey.teleprompterGuidanceMode: "wordTracking",
         DefaultsKey.teleprompterOverlayMode: "notch",
+        DefaultsKey.teleprompterPreviewOverlayMode: "notch",
         DefaultsKey.teleprompterScrollSpeed: 2.5,
         DefaultsKey.teleprompterFontSize: "sm",
         DefaultsKey.teleprompterFontFamily: "sans",

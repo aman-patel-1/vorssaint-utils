@@ -30,7 +30,8 @@ final class TeleprompterFloatingWindowController: NSWindowController, NSWindowDe
         panel.hasShadow = true
         panel.sharingType = .none
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.minSize = NSSize(width: 280, height: 140)
+        panel.minSize = NSSize(width: CGFloat(TeleprompterService.windowWidthRange.lowerBound),
+                               height: CGFloat(TeleprompterService.windowHeightRange.lowerBound))
         panel.standardWindowButton(.closeButton)?.isHidden = true
 
         panel.contentView = NSHostingView(rootView: TeleprompterFloatingContentView())
@@ -74,8 +75,8 @@ final class TeleprompterFloatingWindowController: NSWindowController, NSWindowDe
         guard let panel = window as? NSPanel else { return }
         let targetScreen = screen ?? NSScreen.main ?? NSScreen.screens.first
         if let frame = targetScreen?.frame {
-            let width = min(max(460, CGFloat(TeleprompterService.shared.windowWidth)), frame.width)
-            let height = min(max(200, CGFloat(TeleprompterService.shared.windowHeight)), frame.height)
+            let width = min(max(panel.minSize.width, CGFloat(TeleprompterService.shared.windowWidth)), frame.width)
+            let height = min(max(panel.minSize.height, CGFloat(TeleprompterService.shared.windowHeight)), frame.height)
             let x = frame.midX - width / 2
             let y = frame.maxY - height - 8
             panel.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)

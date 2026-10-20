@@ -98,7 +98,10 @@ struct NotchTeleprompterView: View {
                         dragStartHeight = Double(service.windowHeight)
                     }
                     let newHeight = dragStartHeight + Double(value.translation.height)
-                    service.windowHeight = max(130, min(650, newHeight))
+                    service.windowHeight = min(
+                        TeleprompterService.windowHeightRange.upperBound,
+                        max(TeleprompterService.windowHeightRange.lowerBound, newHeight)
+                    )
                 }
                 .onEnded { _ in
                     dragStartHeight = -1

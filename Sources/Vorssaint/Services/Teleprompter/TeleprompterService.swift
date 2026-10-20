@@ -12,6 +12,8 @@ import SwiftUI
 final class TeleprompterService: ObservableObject {
     static let shared = TeleprompterService()
     static let scrollSpeedRange = 0.25...3.0
+    static let windowWidthRange = 320.0...1000.0
+    static let windowHeightRange = 160.0...800.0
 
     @Published var isRunning: Bool = false {
         didSet { UserDefaults.standard.set(isRunning, forKey: DefaultsKey.teleprompterIsRunning) }
@@ -47,6 +49,7 @@ final class TeleprompterService: ObservableObject {
         }
     }
     @Published var overlayMode: TeleprompterOverlayMode = .notch
+    @Published var previewOverlayMode: TeleprompterOverlayMode = .notch
     @Published var scrollSpeed: Double = 2.5 {
         didSet {
             let bounded = Self.clampedScrollSpeed(scrollSpeed)
@@ -58,8 +61,18 @@ final class TeleprompterService: ObservableObject {
     @Published var highlightColor: TeleprompterHighlightColorPreset = .yellow
     @Published var cueColor: TeleprompterCueColorPreset = .yellow
     @Published var cueBrightness: TeleprompterCueBrightness = .medium
-    @Published var windowWidth: Double = 340.0
-    @Published var windowHeight: Double = 150.0
+    @Published var windowWidth: Double = 560.0 {
+        didSet {
+            let bounded = min(Self.windowWidthRange.upperBound, max(Self.windowWidthRange.lowerBound, windowWidth))
+            if bounded != windowWidth { windowWidth = bounded }
+        }
+    }
+    @Published var windowHeight: Double = 280.0 {
+        didSet {
+            let bounded = min(Self.windowHeightRange.upperBound, max(Self.windowHeightRange.lowerBound, windowHeight))
+            if bounded != windowHeight { windowHeight = bounded }
+        }
+    }
     @Published var readingPosition: TeleprompterReadingPosition = .centered
     @Published var displayTargetMode: TeleprompterDisplayTargetMode = .followMouse
     @Published var showParagraphDividers: Bool = false
@@ -205,6 +218,10 @@ final class TeleprompterService: ObservableObject {
            let ov = TeleprompterOverlayMode(rawValue: overlayStr) {
             overlayMode = ov
         }
+        if let previewOverlayStr = defaults.string(forKey: DefaultsKey.teleprompterPreviewOverlayMode),
+           let previewMode = TeleprompterOverlayMode(rawValue: previewOverlayStr) {
+            previewOverlayMode = previewMode
+        }
         let speed = defaults.double(forKey: DefaultsKey.teleprompterScrollSpeed)
         if speed > 0 {
             scrollSpeed = speed
@@ -230,9 +247,13 @@ final class TeleprompterService: ObservableObject {
             cueBrightness = cb
         }
         let w = defaults.double(forKey: DefaultsKey.teleprompterWidth)
-        if w >= 310 && w <= 500 { windowWidth = w } else if w > 500 { windowWidth = 500 } else if w > 0 { windowWidth = 310 }
+        if w > 0 {
+            windowWidth = min(Self.windowWidthRange.upperBound, max(Self.windowWidthRange.lowerBound, w))
+        }
         let h = defaults.double(forKey: DefaultsKey.teleprompterHeight)
-        if h >= 100 && h <= 650 { windowHeight = h } else if h > 650 { windowHeight = 650 } else if h > 0 { windowHeight = 100 }
+        if h > 0 {
+            windowHeight = min(Self.windowHeightRange.upperBound, max(Self.windowHeightRange.lowerBound, h))
+        }
         if let posStr = defaults.string(forKey: DefaultsKey.teleprompterReadingPosition),
            let rp = TeleprompterReadingPosition(rawValue: posStr) {
             readingPosition = rp
@@ -289,6 +310,7 @@ final class TeleprompterService: ObservableObject {
         defaults.set(currentPageIndex, forKey: DefaultsKey.teleprompterCurrentPageIndex)
         defaults.set(guidanceMode.rawValue, forKey: DefaultsKey.teleprompterGuidanceMode)
         defaults.set(overlayMode.rawValue, forKey: DefaultsKey.teleprompterOverlayMode)
+        defaults.set(previewOverlayMode.rawValue, forKey: DefaultsKey.teleprompterPreviewOverlayMode)
         defaults.set(scrollSpeed, forKey: DefaultsKey.teleprompterScrollSpeed)
         defaults.set(fontSize.rawValue, forKey: DefaultsKey.teleprompterFontSize)
         defaults.set(fontFamily.rawValue, forKey: DefaultsKey.teleprompterFontFamily)
@@ -319,14 +341,15 @@ final class TeleprompterService: ObservableObject {
     func resetSettings() {
         guidanceMode = .wordTracking
         overlayMode = .notch
+        previewOverlayMode = .notch
         scrollSpeed = 2.5
         fontSize = .sm
         fontFamily = .sans
         highlightColor = .yellow
         cueColor = .yellow
         cueBrightness = .medium
-        windowWidth = 340.0
-        windowHeight = 150.0
+        windowWidth = 560.0
+        windowHeight = 280.0
         readingPosition = .centered
         displayTargetMode = .followMouse
         showParagraphDividers = false
@@ -498,12 +521,18 @@ final class TeleprompterService: ObservableObject {
     }
 
     func previewInNotch(autoCloseAfter inactivityInterval: TimeInterval? = nil) {
-        updateNotchSurfaceSize()
+        if isRunning {
+            updateNotchSurfaceSize()
+        } else {
+            NotchService.shared.setTeleprompterSurfaceSize(
+                previewOverlayMode == .notch ? CGSize(width: windowWidth, height: windowHeight) : nil
+            )
+        }
         guard !isRunning else {
             if overlayMode == .floating { TeleprompterFloatingWindowController.shared.updateFrame() }
             return
         }
-        if overlayMode == .floating {
+        if previewOverlayMode == .floating {
             let isChangingSurface = !isPreviewingFloating
             if isChangingSurface { previewWordProgress = 0 }
             isPreviewingInNotch = false
@@ -537,7 +566,7 @@ final class TeleprompterService: ObservableObject {
             } catch {
                 return
             }
-            guard let self, self.isPreviewingInNotch, !self.isRunning else { return }
+            guard let self, self.isPreviewingInNotch || self.isPreviewingFloating, !self.isRunning else { return }
             self.closeNotchPreview()
         }
     }
@@ -581,7 +610,9 @@ final class TeleprompterService: ObservableObject {
     }
 
     private func updateNotchSurfaceSize() {
-        guard overlayMode == .notch, isRunning || isPreviewingInNotch else {
+        let isPreviewActive = isPreviewingInNotch || isPreviewingFloating
+        let activeMode = isRunning ? overlayMode : (isPreviewActive ? previewOverlayMode : overlayMode)
+        guard activeMode == .notch, isRunning || isPreviewingInNotch else {
             NotchService.shared.setTeleprompterSurfaceSize(nil)
             return
         }

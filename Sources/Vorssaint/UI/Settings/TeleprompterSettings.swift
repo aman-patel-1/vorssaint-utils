@@ -25,7 +25,7 @@ private struct TeleprompterPreviewSettingsSnapshot: Equatable {
             service.guidanceMode.rawValue, String(service.scrollSpeed),
             service.readingPosition.rawValue, String(service.showParagraphDividers),
             String(service.showLastSpokenWords), String(service.windowWidth), String(service.windowHeight),
-            service.overlayMode.rawValue, service.displayTargetMode.rawValue,
+            service.overlayMode.rawValue, service.previewOverlayMode.rawValue, service.displayTargetMode.rawValue,
             String(service.overlayTransparency), String(service.showElapsedTime),
             String(service.autoNextPage), service.externalDisplayMode.rawValue,
             service.externalMirrorAxis.rawValue
@@ -300,6 +300,19 @@ struct TeleprompterSettings: View {
                     }
                 }
 
+                Picker("Live Window Placement", selection: $service.overlayMode) {
+                    ForEach(TeleprompterOverlayMode.allCases) { mode in
+                        Label(mode.label, systemImage: mode.icon).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .help("Controls where an opened or running teleprompter appears. Preview placement is selected separately in Appearance.")
+                .onChange(of: service.overlayMode) { _, _ in
+                    triggerHaptic()
+                    service.savePreferences()
+                    service.applyOverlayPlacement()
+                }
+
                 HStack {
                     Text("Global Shortcut")
                     Spacer()
@@ -429,14 +442,27 @@ struct TeleprompterSettings: View {
                     service.savePreferences()
                 }
 
+                Picker("Preview Surface", selection: $service.previewOverlayMode) {
+                    ForEach(TeleprompterOverlayMode.allCases) { mode in
+                        Label(mode.label, systemImage: mode.icon).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .help("Choose the surface used for settings previews. This does not change where a live teleprompter runs.")
+                .onChange(of: service.previewOverlayMode) { _, _ in
+                    triggerHaptic()
+                    service.savePreferences()
+                    if !service.isRunning { service.previewInNotch(autoCloseAfter: 4) }
+                }
+
                 HStack {
                     Spacer()
                     Button {
                         service.previewInNotch()
                         triggerHaptic()
                     } label: {
-                        Label(service.overlayMode == .floating ? "Preview Floating Window" : "Preview in Notch",
-                              systemImage: service.overlayMode == .floating
+                        Label(service.previewOverlayMode == .floating ? "Preview Floating Window" : "Preview in Notch",
+                              systemImage: service.previewOverlayMode == .floating
                                   ? "macwindow" : "rectangle.topthird.inset.filled")
                     }
                     .help("Show a live, animated sample on the selected teleprompter surface using the current settings. This does not start a reading session.")
@@ -542,18 +568,6 @@ struct TeleprompterSettings: View {
 
             // MARK: - 6. Teleprompter Window & Display Section
             Section {
-                Picker("Window Placement", selection: $service.overlayMode) {
-                    ForEach(TeleprompterOverlayMode.allCases) { mode in
-                        Label(mode.label, systemImage: mode.icon).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: service.overlayMode) { _, _ in
-                    triggerHaptic()
-                    service.savePreferences()
-                    service.applyOverlayPlacement()
-                }
-
                 HStack {
                     HStack(spacing: 4) {
                         Text("Display Target")
@@ -575,12 +589,13 @@ struct TeleprompterSettings: View {
                 HStack(spacing: 12) {
                     Text("Window Width")
                         .frame(width: 110, alignment: .leading)
-                    Slider(value: $service.windowWidth, in: 310...500, step: 10)
+                    Slider(value: $service.windowWidth, in: TeleprompterService.windowWidthRange, step: 20)
+                        .help("320–1000 points, limited by the selected display's available width.")
                         .onChange(of: service.windowWidth) { _, _ in
                             triggerHaptic()
                             service.savePreferences()
                         }
-                    Text("\(Int(service.windowWidth)) px")
+                    Text("\(Int(service.windowWidth)) pt")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .frame(width: 50, alignment: .trailing)
@@ -589,12 +604,13 @@ struct TeleprompterSettings: View {
                 HStack(spacing: 12) {
                     Text("Window Height")
                         .frame(width: 110, alignment: .leading)
-                    Slider(value: $service.windowHeight, in: 100...650, step: 10)
+                    Slider(value: $service.windowHeight, in: TeleprompterService.windowHeightRange, step: 20)
+                        .help("160–800 points, limited by the selected display's available height.")
                         .onChange(of: service.windowHeight) { _, _ in
                             triggerHaptic()
                             service.savePreferences()
                         }
-                    Text("\(Int(service.windowHeight)) px")
+                    Text("\(Int(service.windowHeight)) pt")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .frame(width: 50, alignment: .trailing)
