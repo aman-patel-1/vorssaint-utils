@@ -1452,6 +1452,12 @@ struct PageEditorDialog: View {
         let newCaret = caret + (toInsert as NSString).length
         editorCaretPosition = newCaret
         caretPosition = newCaret
+        if dictation.isRecording {
+            // Re-anchor the live transcript after the inserted cue. Otherwise
+            // subsequent partial results replace text at the previous segment
+            // start and appear before or overwrite the cue.
+            dictation.restartCurrentSegment()
+        }
         triggerHaptic()
     }
 

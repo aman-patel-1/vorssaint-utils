@@ -81,6 +81,15 @@ final class DictationManager: ObservableObject {
         cleanup()
     }
 
+    /// Commit the current transcript segment and begin a fresh recognition
+    /// request without stopping the audio engine. Used when an editor action
+    /// (such as inserting a cue) changes the insertion point mid-dictation.
+    func restartCurrentSegment() {
+        guard isRecording else { return }
+        onNewSegment?()
+        restartRecognitionTask()
+    }
+
     private func cleanup() {
         requestLock.lock()
         let req = recognitionRequest
