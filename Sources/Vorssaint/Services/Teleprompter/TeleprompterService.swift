@@ -367,14 +367,9 @@ final class TeleprompterService: ObservableObject {
         set(guidanceMode.rawValue, DefaultsKey.teleprompterGuidanceMode)
         set(scrollSpeed, DefaultsKey.teleprompterScrollSpeed)
         set(readingPosition.rawValue, DefaultsKey.teleprompterReadingPosition)
-        set(showParagraphDividers, DefaultsKey.teleprompterShowParagraphDividers)
-        set(showLastSpokenWords, DefaultsKey.teleprompterShowLastSpokenWords)
-        set(keepScreenAwake, DefaultsKey.teleprompterKeepScreenAwake)
-        set(autoNextPage, DefaultsKey.teleprompterAutoNextPage)
         set(windowWidth, DefaultsKey.teleprompterWidth)
         set(windowHeight, DefaultsKey.teleprompterHeight)
         set(overlayTransparency, DefaultsKey.teleprompterOverlayTransparency)
-        set(showElapsedTime, DefaultsKey.teleprompterShowElapsedTime)
         set(hideFromScreenShare, DefaultsKey.teleprompterHideFromScreenShare)
         set(speechLocale, DefaultsKey.teleprompterSpeechLanguage)
         set(selectedMicUID, DefaultsKey.teleprompterSelectedMicUID)
@@ -403,14 +398,9 @@ final class TeleprompterService: ObservableObject {
         if let raw = string(DefaultsKey.teleprompterGuidanceMode), let value = GuidanceMode(rawValue: raw) { guidanceMode = value }
         if let value = number(DefaultsKey.teleprompterScrollSpeed) { scrollSpeed = Self.clampedScrollSpeed(value) }
         if let raw = string(DefaultsKey.teleprompterReadingPosition), let value = TeleprompterReadingPosition(rawValue: raw) { readingPosition = value }
-        showParagraphDividers = bool(DefaultsKey.teleprompterShowParagraphDividers, fallback: showParagraphDividers)
-        showLastSpokenWords = bool(DefaultsKey.teleprompterShowLastSpokenWords, fallback: showLastSpokenWords)
-        keepScreenAwake = bool(DefaultsKey.teleprompterKeepScreenAwake, fallback: keepScreenAwake)
-        autoNextPage = bool(DefaultsKey.teleprompterAutoNextPage, fallback: autoNextPage)
         if let value = number(DefaultsKey.teleprompterWidth) { windowWidth = value }
         if let value = number(DefaultsKey.teleprompterHeight) { windowHeight = value }
         if let value = number(DefaultsKey.teleprompterOverlayTransparency) { overlayTransparency = value }
-        showElapsedTime = bool(DefaultsKey.teleprompterShowElapsedTime, fallback: showElapsedTime)
         hideFromScreenShare = bool(DefaultsKey.teleprompterHideFromScreenShare, fallback: hideFromScreenShare)
         if let locale = string(DefaultsKey.teleprompterSpeechLanguage) { speechLocale = locale }
         if let mic = string(DefaultsKey.teleprompterSelectedMicUID) { selectedMicUID = mic }
@@ -558,22 +548,18 @@ final class TeleprompterService: ObservableObject {
 
     // MARK: - Playback Control
 
-    /// Open the selected prompter surface without starting a reading session.
-    /// In floating mode, playback starts only when the user presses Play in
-    /// the window.
+    /// Open the notch's ready state without starting a reading session.
+    /// Starting playback then uses the selected appearance.
     func openPrompter() {
         endNotchPreview()
-        if overlayMode == .floating {
-            presentFloatingSurface()
-        } else {
-            presentNotchSurface()
-        }
+        presentNotchSurface()
     }
 
     /// Save the current surface's options, then restore the chosen surface's
     /// own appearance, guidance, reading, and size settings.
     func selectOverlayMode(_ mode: TeleprompterOverlayMode) {
         guard overlayMode != mode else { return }
+        if isPreviewingInNotch || isPreviewingFloating { closeNotchPreview() }
         savePlacementProfile(for: overlayMode)
         overlayMode = mode
         loadPlacementProfile(for: mode)

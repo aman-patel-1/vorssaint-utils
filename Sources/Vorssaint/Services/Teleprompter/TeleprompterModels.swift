@@ -51,7 +51,7 @@ enum TeleprompterOverlayMode: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .notch:      return "Dynamic Island"
+        case .notch:      return "Notch"
         case .floating:   return "Floating Window"
         }
     }
