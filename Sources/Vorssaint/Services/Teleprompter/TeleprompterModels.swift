@@ -209,29 +209,31 @@ struct AudioInputDevice: Identifiable, Hashable {
             guard AudioObjectGetPropertyDataSize(deviceID, &inputAddress, 0, nil, &streamSize) == noErr,
                   streamSize > 0 else { continue }
 
-            var nameAddress = AudioObjectPropertyAddress(
-                mSelector: kAudioObjectPropertyName,
-                mScope: kAudioObjectPropertyScopeGlobal,
-                mElement: kAudioObjectPropertyElementMain
-            )
-            var cfName: CFString = "" as CFString
-            var nameSize = UInt32(MemoryLayout<CFString>.size)
-            let nameErr = AudioObjectGetPropertyData(deviceID, &nameAddress, 0, nil, &nameSize, &cfName)
-            let deviceName = (nameErr == noErr) ? (cfName as String) : "Unknown Device"
+            var nameRef: CFString = "" as CFString
+            let deviceName = read(deviceID, kAudioObjectPropertyName, &nameRef) ? (nameRef as String) : "Unknown Device"
 
-            var uidAddress = AudioObjectPropertyAddress(
-                mSelector: kAudioDevicePropertyDeviceUID,
-                mScope: kAudioObjectPropertyScopeGlobal,
-                mElement: kAudioObjectPropertyElementMain
-            )
-            var cfUID: CFString = "" as CFString
-            var uidSize = UInt32(MemoryLayout<CFString>.size)
-            let uidErr = AudioObjectGetPropertyData(deviceID, &uidAddress, 0, nil, &uidSize, &cfUID)
-            let deviceUID = (uidErr == noErr) ? (cfUID as String) : "\(deviceID)"
+            var uidRef: CFString = "" as CFString
+            let deviceUID = read(deviceID, kAudioDevicePropertyDeviceUID, &uidRef) ? (uidRef as String) : "\(deviceID)"
 
             result.append(AudioInputDevice(id: deviceID, uid: deviceUID, name: deviceName))
         }
         return result
+    }
+
+    @discardableResult
+    private static func read<T>(_ object: AudioObjectID,
+                                _ selector: AudioObjectPropertySelector,
+                                _ value: inout T) -> Bool {
+        var address = AudioObjectPropertyAddress(
+            mSelector: selector,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var size = UInt32(MemoryLayout<T>.size)
+        return withUnsafeMutablePointer(to: &value) { pointer in
+            AudioObjectGetPropertyData(object, &address, 0, nil, &size,
+                                       UnsafeMutableRawPointer(pointer)) == noErr
+        }
     }
 
     static func deviceID(forUID uid: String) -> AudioDeviceID? {
