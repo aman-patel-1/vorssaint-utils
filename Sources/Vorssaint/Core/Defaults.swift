@@ -208,6 +208,18 @@ enum DefaultsKey {
     static let shelfClearOnClose = "shelfClearOnClose"
     static let shelfShortcutAddsFinderSelection = "shelfShortcutAddsFinderSelection"
     static let shelfAutomaticExclusions = "shelfAutomaticExclusions" // [bundle id] blocks automatic opening only
+    // Teleprompter
+    static let teleprompterScriptText = "teleprompterScriptText"
+    static let teleprompterGuidanceMode = "teleprompterGuidanceMode"
+    static let teleprompterOverlayMode = "teleprompterOverlayMode"
+    static let teleprompterScrollSpeed = "teleprompterScrollSpeed"
+    static let teleprompterFontSize = "teleprompterFontSize"
+    static let teleprompterFontFamily = "teleprompterFontFamily"
+    static let teleprompterHighlightColor = "teleprompterHighlightColor"
+    static let teleprompterSpeechLanguage = "teleprompterSpeechLanguage"
+    static let teleprompterSelectedMicUID = "teleprompterSelectedMicUID"
+    static let teleprompterRemoteServerEnabled = "teleprompterRemoteServerEnabled"
+    static let teleprompterRemoteServerPort = "teleprompterRemoteServerPort"
     static let extraBrightnessEnabled = "extraBrightnessEnabled"
     static let extraBrightnessLevel = "extraBrightnessLevel"   // Int percent 0-100
     static let brightnessControlEnabled = "brightnessControlEnabled" // sliders for every display

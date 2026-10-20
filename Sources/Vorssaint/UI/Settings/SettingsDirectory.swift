@@ -434,6 +434,13 @@ enum SettingsDirectory {
                                                  FeatureStrings.radialMenu(language).kindMedia,
                                                  FeatureStrings.radialMenu(language).kindSubmenu,
                                                  FeatureStrings.radialMenu(language).mouseTriggerRequirement]),
+                SettingsDirectoryItem(page: .teleprompter,
+                                      title: FeatureStrings.teleprompter(language).title,
+                                      icon: "waveform.and.mic",
+                                      keywords: [FeatureStrings.teleprompter(language).title,
+                                                 FeatureStrings.teleprompter(language).hubDescription,
+                                                 "teleprompter", "prompter", "speech", "speech recognition",
+                                                 "presentation", "slides", "pptx", "remote prompter", "qr"]),
             ]),
             (categories.app, [
                 SettingsDirectoryItem(page: .shortcuts, title: s.shortcutsPageTitle, icon: "command",
