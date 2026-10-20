@@ -65,6 +65,8 @@ final class TeleprompterFloatingWindowController: NSWindowController, NSWindowDe
     func windowWillClose(_ notification: Notification) {
         if TeleprompterService.shared.isRunning {
             TeleprompterService.shared.stop()
+        } else {
+            TeleprompterService.shared.floatingWindowVisible = false
         }
     }
 

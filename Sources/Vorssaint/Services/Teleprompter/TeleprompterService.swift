@@ -92,6 +92,7 @@ final class TeleprompterService: ObservableObject {
     private var sleepAssertionID: IOPMAssertionID = 0
     private var elapsedTimer: Timer?
     private var notchPreviewIdleTask: Task<Void, Never>?
+    private var restoreFloatingAfterNotchPreview = false
     private var restartSpeechOnResume = false
 
     @Published var sessionStartTime: Date? = nil
@@ -448,22 +449,51 @@ final class TeleprompterService: ObservableObject {
     /// In floating mode, playback starts only when the user presses Play in
     /// the window.
     func openPrompter() {
+        endNotchPreview()
         if overlayMode == .floating {
-            NotchService.shared.collapse()
-            floatingWindowVisible = true
-            TeleprompterFloatingWindowController.shared.show()
+            presentFloatingSurface()
         } else {
-            NotchService.shared.open(.teleprompter)
+            presentNotchSurface()
         }
+    }
+
+    /// Move an active session when the user changes its selected placement.
+    func applyOverlayPlacement() {
+        guard isRunning else { return }
+        if overlayMode == .floating {
+            presentFloatingSurface()
+        } else {
+            presentNotchSurface()
+        }
+    }
+
+    private func presentNotchSurface() {
+        floatingWindowVisible = false
+        TeleprompterFloatingWindowController.shared.hide()
+        if NotchSupport.isEnabled() {
+            NotchService.shared.open(.teleprompter)
+        } else {
+            floatingWindowVisible = true
+            TeleprompterFloatingWindowController.shared.showAtNotch()
+        }
+    }
+
+    private func presentFloatingSurface() {
+        NotchService.shared.collapse()
+        floatingWindowVisible = true
+        TeleprompterFloatingWindowController.shared.show()
     }
 
     func previewInNotch(autoCloseAfter inactivityInterval: TimeInterval? = nil) {
         guard !isRunning else {
-            NotchService.shared.open(.teleprompter)
+            applyOverlayPlacement()
             return
         }
+        if !isPreviewingInNotch {
+            restoreFloatingAfterNotchPreview = floatingWindowVisible
+        }
         isPreviewingInNotch = true
-        NotchService.shared.open(.teleprompter)
+        presentNotchSurface()
 
         notchPreviewIdleTask?.cancel()
         guard let inactivityInterval else { return }
@@ -474,10 +504,7 @@ final class TeleprompterService: ObservableObject {
                 return
             }
             guard let self, self.isPreviewingInNotch, !self.isRunning else { return }
-            self.endNotchPreview()
-            if NotchService.shared.selected == .teleprompter {
-                NotchService.shared.backFromTeleprompter()
-            }
+            self.closeNotchPreview()
         }
     }
 
@@ -485,6 +512,16 @@ final class TeleprompterService: ObservableObject {
         notchPreviewIdleTask?.cancel()
         notchPreviewIdleTask = nil
         isPreviewingInNotch = false
+        restoreFloatingAfterNotchPreview = false
+    }
+
+    func closeNotchPreview() {
+        let restoreFloating = restoreFloatingAfterNotchPreview && overlayMode == .floating
+        endNotchPreview()
+        if NotchService.shared.selected == .teleprompter {
+            NotchService.shared.backFromTeleprompter()
+        }
+        if restoreFloating { presentFloatingSurface() }
     }
 
     func closeFloatingWindow() {
@@ -582,15 +619,9 @@ final class TeleprompterService: ObservableObject {
         }
 
         if overlayMode == .notch {
-            if NotchSupport.isEnabled() {
-                NotchService.shared.open(.teleprompter)
-            } else {
-                TeleprompterFloatingWindowController.shared.showAtNotch()
-            }
-        } else if overlayMode == .floating {
-            NotchService.shared.collapse()
-            floatingWindowVisible = true
-            TeleprompterFloatingWindowController.shared.show()
+            presentNotchSurface()
+        } else {
+            presentFloatingSurface()
         }
     }
 

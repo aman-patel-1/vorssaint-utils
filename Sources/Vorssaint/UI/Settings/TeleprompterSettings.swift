@@ -548,6 +548,7 @@ struct TeleprompterSettings: View {
                 .onChange(of: service.overlayMode) { _, _ in
                     triggerHaptic()
                     service.savePreferences()
+                    service.applyOverlayPlacement()
                 }
 
                 HStack {

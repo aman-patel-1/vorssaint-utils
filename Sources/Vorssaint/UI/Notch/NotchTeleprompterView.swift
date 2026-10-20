@@ -109,7 +109,10 @@ struct NotchTeleprompterView: View {
     }
 
     private func backFromTeleprompter() {
-        if service.isPreviewingInNotch { service.endNotchPreview() }
+        if service.isPreviewingInNotch {
+            service.closeNotchPreview()
+            return
+        }
         NotchService.shared.backFromTeleprompter()
     }
 
