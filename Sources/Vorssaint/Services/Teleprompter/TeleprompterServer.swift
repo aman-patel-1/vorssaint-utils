@@ -172,8 +172,9 @@ final class TeleprompterServer: ObservableObject {
         guard contentActive, !wsConnections.isEmpty else { return }
 
         let charCount: Int
-        let mode = TeleprompterService.shared.guidanceMode
-        let scrollSpeed = TeleprompterService.shared.scrollSpeed
+        let (mode, scrollSpeed) = MainActor.assumeIsolated {
+            (TeleprompterService.shared.guidanceMode, TeleprompterService.shared.scrollSpeed)
+        }
         let scrollDone = totalCharCount > 0 && charOffsetForWordProgress(timerWordProgress) >= totalCharCount
 
         switch mode {
@@ -203,7 +204,7 @@ final class TeleprompterServer: ObservableObject {
             audioLevels: (speechRecognizer?.audioLevels ?? []).map { Double($0) },
             isListening: speechRecognizer?.isListening ?? false,
             isDone: isDone,
-            fontColor: TeleprompterService.shared.highlightColor.hexString,
+            fontColor: MainActor.assumeIsolated { TeleprompterService.shared.highlightColor.hexString },
             cueColor: "#FFFFFF",
             hasNextPage: hasNextPage,
             isActive: true,

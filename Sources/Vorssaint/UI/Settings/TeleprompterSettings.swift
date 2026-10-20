@@ -38,7 +38,7 @@ struct TeleprompterSettings: View {
                         HStack {
                             Text("Scroll Speed")
                             Spacer()
-                            Text(String(format: locale: .current, "%.1f words/sec", service.scrollSpeed))
+                            Text(String(format: "%.1f words/sec", service.scrollSpeed))
                                 .foregroundStyle(.secondary)
                         }
                         Slider(value: $service.scrollSpeed, in: 0.5...8.0, step: 0.5) {

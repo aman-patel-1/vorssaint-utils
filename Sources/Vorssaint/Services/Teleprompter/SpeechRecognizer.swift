@@ -139,7 +139,8 @@ final class SpeechRecognizer: ObservableObject {
 
     private func beginAfterMicrophoneAccess(for generation: Int) {
         guard shouldListen, sessionGeneration == generation else { return }
-        if TeleprompterService.shared.guidanceMode == .wordTracking {
+        let needsSpeech = MainActor.assumeIsolated { TeleprompterService.shared.guidanceMode == .wordTracking }
+        if needsSpeech {
             requestSpeechAuthAndBegin(for: generation)
         } else {
             beginRecognition()
@@ -276,7 +277,7 @@ final class SpeechRecognizer: ObservableObject {
             return
         }
         let expectedSessionGeneration = sessionGeneration
-        let requiresSpeechRecognition = TeleprompterService.shared.guidanceMode == .wordTracking
+        let requiresSpeechRecognition = MainActor.assumeIsolated { TeleprompterService.shared.guidanceMode == .wordTracking }
         cleanupRecognition()
         guard shouldListen, sessionGeneration == expectedSessionGeneration else {
             isListening = false
@@ -291,7 +292,7 @@ final class SpeechRecognizer: ObservableObject {
         audioEngine = AVAudioEngine()
         suppressConfigChange = false
 
-        let micUID = TeleprompterService.shared.selectedMicUID
+        let micUID = MainActor.assumeIsolated { TeleprompterService.shared.selectedMicUID }
         if !micUID.isEmpty, let deviceID = AudioInputDevice.deviceID(forUID: micUID) {
             suppressConfigChange = true
             let inputUnit = audioEngine.inputNode.audioUnit
@@ -317,7 +318,7 @@ final class SpeechRecognizer: ObservableObject {
         }
 
         if requiresSpeechRecognition {
-            let localeIdent = TeleprompterService.shared.speechLocale
+            let localeIdent = MainActor.assumeIsolated { TeleprompterService.shared.speechLocale }
             speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdent))
             guard let speechRecognizer else {
                 failListening("Speech recognition isn't supported for the selected language.")
