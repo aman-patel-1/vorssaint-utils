@@ -58,6 +58,7 @@ final class TeleprompterService: ObservableObject {
     private var autoScrollTimer: Timer?
     private var words: [String] = []
     private var cancellables = Set<AnyCancellable>()
+    private let hotkey = QuickToolHotkey(id: 90)
 
     var currentScript: String {
         get {
@@ -99,10 +100,20 @@ final class TeleprompterService: ObservableObject {
     private init() {
         loadPreferences()
         setupObservers()
+        syncWithPreferences()
     }
 
     func syncWithPreferences() {
         loadPreferences()
+
+        let shortcut = GlobalShortcut.saved(for: DefaultsKey.teleprompterShortcut, fallback: .teleprompterDefault)
+        let isEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.teleprompterEnabled)
+        let shortcutEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.teleprompterShortcutEnabled)
+        hotkey.onPress = { [weak self] in
+            self?.toggle()
+        }
+        hotkey.sync(enabled: isEnabled && shortcutEnabled, shortcut: shortcut, storageKey: DefaultsKey.teleprompterShortcut)
+
         if remoteServerEnabled && !remoteServer.isRunning {
             remoteServer.start()
         } else if !remoteServerEnabled && remoteServer.isRunning {

@@ -4,11 +4,23 @@
 import AppKit
 import SwiftUI
 
+final class TeleprompterPanel: NSPanel {
+    override func cancelOperation(_ sender: Any?) {
+        if TeleprompterService.shared.overlayMode == .fullscreen {
+            TeleprompterService.shared.overlayMode = .floating
+            TeleprompterService.shared.savePreferences()
+            TeleprompterFloatingWindowController.shared.show()
+        } else {
+            super.cancelOperation(sender)
+        }
+    }
+}
+
 final class TeleprompterFloatingWindowController: NSWindowController {
     static let shared = TeleprompterFloatingWindowController()
 
     convenience init() {
-        let panel = NSPanel(
+        let panel = TeleprompterPanel(
             contentRect: NSRect(x: 200, y: 300, width: 380, height: 220),
             styleMask: [.titled, .closable, .resizable, .fullSizeContentView, .utilityWindow, .nonactivatingPanel],
             backing: .buffered,

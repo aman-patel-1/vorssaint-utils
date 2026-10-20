@@ -241,6 +241,8 @@ enum DefaultsKey {
     static let teleprompterHideFromScreenShare = "teleprompterHideFromScreenShare"
     static let teleprompterAutoNextPage = "teleprompterAutoNextPage"
     static let teleprompterOverlayTransparency = "teleprompterOverlayTransparency"
+    static let teleprompterShortcutEnabled = "teleprompterShortcutEnabled"
+    static let teleprompterShortcut = "teleprompterShortcut"
     static let extraBrightnessEnabled = "extraBrightnessEnabled"
     static let extraBrightnessLevel = "extraBrightnessLevel"   // Int percent 0-100
     static let brightnessControlEnabled = "brightnessControlEnabled" // sliders for every display
@@ -2025,6 +2027,8 @@ enum Defaults {
         DefaultsKey.teleprompterExternalDisplayMode: "off",
         DefaultsKey.teleprompterExternalDisplayMirrorAxis: "horizontal",
         DefaultsKey.teleprompterExternalScreenID: 0,
+        DefaultsKey.teleprompterShortcutEnabled: true,
+        DefaultsKey.teleprompterShortcut: GlobalShortcut.teleprompterDefault.storageValue,
     ]
 
     static func register() {

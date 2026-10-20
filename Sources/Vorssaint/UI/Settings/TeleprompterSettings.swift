@@ -33,6 +33,9 @@ struct TeleprompterSettings: View {
     @ObservedObject private var dictation = TeleprompterService.shared.dictationManager
 
     @AppStorage(DefaultsKey.teleprompterEnabled) private var teleprompterEnabled = true
+    @AppStorage(DefaultsKey.teleprompterShortcutEnabled) private var teleprompterShortcutEnabled = true
+    @AppStorage(DefaultsKey.teleprompterShortcut) private var teleprompterShortcutRaw =
+        GlobalShortcut.teleprompterDefault.storageValue
 
     @State private var inputDevices: [AudioInputDevice] = AudioInputDevice.allInputDevices()
     @State private var editingPageIndex: Int? = nil
@@ -227,6 +230,26 @@ struct TeleprompterSettings: View {
                     }
                 }
                 .onChange(of: service.selectedMicUID) { _ in service.savePreferences() }
+
+                HStack {
+                    Toggle("Global Shortcut", isOn: $teleprompterShortcutEnabled)
+                        .onChange(of: teleprompterShortcutEnabled) { _ in
+                            service.syncWithPreferences()
+                        }
+                    Spacer()
+                    ShortcutRecorderButton(
+                        shortcut: GlobalShortcut(storageValue: teleprompterShortcutRaw) ?? .teleprompterDefault,
+                        isEnabled: teleprompterShortcutEnabled,
+                        waitingTitle: l10n.s.shortcutPressKeys,
+                        invalidAction: { },
+                        captureAction: { saved in
+                            teleprompterShortcutRaw = saved.storageValue
+                            service.syncWithPreferences()
+                        }
+                    )
+                    .frame(width: 108)
+                    .disabled(!teleprompterShortcutEnabled)
+                }
             } header: {
                 Text("Guidance")
             }
