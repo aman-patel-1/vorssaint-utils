@@ -13,7 +13,7 @@ struct HighlightingTextEditor: NSViewRepresentable {
     var cueAlpha: CGFloat = 0.8
     @Binding var caretPosition: Int?
     @Binding var editorCaretPosition: Int
-    @Binding var cueToInsert: String?
+    var cueToInsert: Binding<String?>? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -58,11 +58,11 @@ struct HighlightingTextEditor: NSViewRepresentable {
         context.coordinator.parent = self
         guard let textView = scrollView.documentView as? NSTextView else { return }
 
-        if let cue = cueToInsert {
+        if let cue = cueToInsert?.wrappedValue {
             let insertion = " [\(cue)] "
             textView.insertText(insertion, replacementRange: textView.selectedRange())
             DispatchQueue.main.async {
-                self.cueToInsert = nil
+                self.cueToInsert?.wrappedValue = nil
             }
         }
 
