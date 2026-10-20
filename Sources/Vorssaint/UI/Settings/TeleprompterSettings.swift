@@ -18,10 +18,10 @@ struct DictationWaveformView: View {
             ForEach(0..<min(24, levels.count), id: \.self) { idx in
                 RoundedRectangle(cornerRadius: 1)
                     .fill(color)
-                    .frame(width: 2.5, height: max(4, levels[idx] * 22))
+                    .frame(width: 2.5, height: max(4, levels[idx] * 20))
             }
         }
-        .frame(height: 24)
+        .frame(height: 20)
     }
 }
 
@@ -32,83 +32,396 @@ struct TeleprompterSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var dictation = TeleprompterService.shared.dictationManager
 
-    @State private var inputDevices: [AudioInputDevice] = AudioInputDevice.allInputDevices()
-    @State private var importErrorMessage: String?
-    @State private var showingImportError = false
-
-    // Dictation & Caret Tracking
-    @State private var dictationHighlightRange: NSRange? = nil
-    @State private var dictationCaretPosition: Int? = nil
-    @State private var editorCaretPosition: Int = 0
-    @State private var highlightClearTimer: Timer?
-
-    @State private var segmentStart: Int = 0
-    @State private var segmentLength: Int = 0
-    @State private var segmentNeedsSeparator: Bool = false
-    @State private var spokenSkipOffset: Int = 0
-    @State private var lastRawSpokenLength: Int = 0
-
     @AppStorage(DefaultsKey.teleprompterEnabled) private var teleprompterEnabled = true
 
-    // Tab for Remote Controls
-    @State private var selectedRemoteTab: Int = 0
+    @State private var inputDevices: [AudioInputDevice] = AudioInputDevice.allInputDevices()
+    @State private var editingPageIndex: Int? = nil
+    @State private var editingPageText: String = ""
+    @State private var confirmingReset = false
+    @State private var showingImportError = false
+    @State private var importErrorMessage: String? = nil
 
     private var strings: TeleprompterStrings {
         FeatureStrings.teleprompter(l10n.language)
     }
 
-    private var scriptBinding: Binding<String> {
-        Binding(
-            get: { service.currentScript },
-            set: { newValue in
-                service.currentScript = newValue
-            }
-        )
-    }
-
-    private var estimatedReadingTimeText: String {
-        let words = service.totalWordCount
-        guard words > 0 else { return "0m 0s" }
-        // Average speaking pace ~130 words per minute
-        let seconds = Int(Double(words) / 130.0 * 60.0)
-        let mins = seconds / 60
-        let remSecs = seconds % 60
-        return mins > 0 ? "~\(mins)m \(remSecs)s" : "~\(remSecs)s"
+    private var pagesList: [String] {
+        if service.pages.isEmpty {
+            return [service.text]
+        }
+        return service.pages
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // Header (matches DockSettings, ClipboardSettings, etc.)
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(strings.title).font(.title2.bold())
-                    Text(strings.hubDescription)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                // Master Feature Enable Card
-                masterFeatureCard
-                    .settingsSectionAnchor(.teleprompter, cornerRadius: 16)
-
-                if teleprompterEnabled {
-                    scriptStudioCard
-                    guidanceModeCard
-                    displayOverlayCard
-                    externalDisplayCard
-                    microphoneSpeechCard
-                    importScriptCard
-                    remoteControlsCard
-                }
+        Form {
+            // MARK: - 1. Master Section
+            Section {
+                Toggle(strings.title, isOn: $teleprompterEnabled)
+                Text(strings.hubDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text(strings.title)
             }
-            .frame(maxWidth: 760)
-            .frame(maxWidth: .infinity)
-            .padding(22)
+
+            // MARK: - 2. Script Studio & Notes Section
+            Section {
+                ForEach(pagesList.indices, id: \.self) { idx in
+                    pageRow(index: idx)
+                }
+
+                HStack(spacing: 10) {
+                    Button {
+                        addNewPage()
+                    } label: {
+                        Label("Add Page", systemImage: "plus")
+                    }
+
+                    Button {
+                        chooseAndImportPPTX()
+                    } label: {
+                        Label("Import .pptx...", systemImage: "doc.badge.plus")
+                    }
+
+                    Spacer()
+
+                    // Right-aligned start prompter controls in the second row
+                    HStack(spacing: 8) {
+                        Button {
+                            service.toggle()
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: service.isRunning && !service.isPaused ? "pause.fill" : "play.fill")
+                                Text(service.isRunning && !service.isPaused ? strings.pause : (service.isRunning ? strings.resume : strings.start))
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(service.isRunning && !service.isPaused ? .orange : .accentColor)
+
+                        if service.isRunning {
+                            Button {
+                                service.stop()
+                            } label: {
+                                Label(strings.stop, systemImage: "stop.fill")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            } header: {
+                Text("Script Studio & Notes")
+            }
+            .disabled(!teleprompterEnabled)
+
+            // MARK: - 3. Appearance Section
+            Section {
+                Picker("Font Family", selection: $service.fontFamily) {
+                    ForEach(TeleprompterFontFamilyPreset.allCases) { family in
+                        Text(family.label).tag(family)
+                    }
+                }
+                .onChange(of: service.fontFamily) { _ in service.savePreferences() }
+
+                Picker("Font Size", selection: $service.fontSize) {
+                    ForEach(TeleprompterFontSizePreset.allCases) { size in
+                        Text("\(size.label) (\(Int(size.pointSize)) pt)").tag(size)
+                    }
+                }
+                .onChange(of: service.fontSize) { _ in service.savePreferences() }
+
+                Picker("Highlight Color", selection: $service.highlightColor) {
+                    ForEach(TeleprompterHighlightColorPreset.allCases) { col in
+                        HStack(spacing: 6) {
+                            Circle().fill(col.color).frame(width: 10, height: 10)
+                            Text(col.label)
+                        }
+                        .tag(col)
+                    }
+                }
+                .onChange(of: service.highlightColor) { _ in service.savePreferences() }
+
+                Picker("Cue Color", selection: $service.cueColor) {
+                    ForEach(TeleprompterCueColorPreset.allCases) { cueCol in
+                        HStack(spacing: 6) {
+                            Circle().fill(cueCol.color).frame(width: 10, height: 10)
+                            Text(cueCol.label)
+                        }
+                        .tag(cueCol)
+                    }
+                }
+                .onChange(of: service.cueColor) { _ in service.savePreferences() }
+
+                Picker("Cue Brightness", selection: $service.cueBrightness) {
+                    ForEach(TeleprompterCueBrightness.allCases) { bright in
+                        Text(bright.label).tag(bright)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: service.cueBrightness) { _ in service.savePreferences() }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Window Width")
+                        Spacer()
+                        Text("\(Int(service.windowWidth)) px")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $service.windowWidth, in: 300...900, step: 10)
+                        .onChange(of: service.windowWidth) { _ in service.savePreferences() }
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Window Height")
+                        Spacer()
+                        Text("\(Int(service.windowHeight)) px")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $service.windowHeight, in: 120...600, step: 10)
+                        .onChange(of: service.windowHeight) { _ in service.savePreferences() }
+                }
+            } header: {
+                Text("Appearance")
+            }
+            .disabled(!teleprompterEnabled)
+
+            // MARK: - 4. Guidance Section
+            Section {
+                Picker("Tracking Mode", selection: $service.guidanceMode) {
+                    ForEach(GuidanceMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: service.guidanceMode) { _ in service.savePreferences() }
+
+                if service.guidanceMode != .wordTracking {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Scroll Speed")
+                            Spacer()
+                            Text(String(format: "%.1fx", service.scrollSpeed))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: $service.scrollSpeed, in: 1.0...6.0, step: 0.1)
+                            .onChange(of: service.scrollSpeed) { _ in service.savePreferences() }
+                    }
+                }
+
+                Picker("Speech Language", selection: $service.speechLocale) {
+                    ForEach(SpeechLocaleSupport.supportedLocales, id: \.identifier) { loc in
+                        Text(Locale.current.localizedString(forIdentifier: loc.identifier) ?? loc.identifier)
+                            .tag(loc.identifier)
+                    }
+                }
+                .onChange(of: service.speechLocale) { _ in service.savePreferences() }
+
+                Picker("Microphone", selection: $service.selectedMicUID) {
+                    Text("System Default").tag("")
+                    ForEach(inputDevices) { dev in
+                        Text(dev.name).tag(dev.uid)
+                    }
+                }
+                .onChange(of: service.selectedMicUID) { _ in service.savePreferences() }
+            } header: {
+                Text("Guidance")
+            }
+            .disabled(!teleprompterEnabled)
+
+            // MARK: - 5. Reading Section
+            Section {
+                Picker("Reading Position", selection: $service.readingPosition) {
+                    ForEach(TeleprompterReadingPosition.allCases) { pos in
+                        Text(pos.label).tag(pos)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: service.readingPosition) { _ in service.savePreferences() }
+
+                Toggle("Show paragraph dividers", isOn: $service.showParagraphDividers)
+                    .onChange(of: service.showParagraphDividers) { _ in service.savePreferences() }
+
+                Toggle("Show last spoken word", isOn: $service.showLastSpokenWords)
+                    .onChange(of: service.showLastSpokenWords) { _ in service.savePreferences() }
+
+                Toggle("Keep screen awake while teleprompter is active", isOn: $service.keepScreenAwake)
+                    .onChange(of: service.keepScreenAwake) { _ in service.savePreferences() }
+            } header: {
+                Text("Reading")
+            }
+            .disabled(!teleprompterEnabled)
+
+            // MARK: - 6. Teleprompter Window & Display Section
+            Section {
+                Picker("Window Placement", selection: $service.overlayMode) {
+                    ForEach(TeleprompterOverlayMode.allCases) { mode in
+                        Label(mode.label, systemImage: mode.icon).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: service.overlayMode) { _ in service.savePreferences() }
+
+                Picker("Display Target", selection: $service.displayTargetMode) {
+                    ForEach(TeleprompterDisplayTargetMode.allCases) { tm in
+                        Text(tm.label).tag(tm)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: service.displayTargetMode) { _ in service.savePreferences() }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Window Transparency")
+                        Spacer()
+                        Text("\(Int((service.overlayTransparency) * 100))%")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $service.overlayTransparency, in: 0.0...0.5, step: 0.05)
+                        .onChange(of: service.overlayTransparency) { _ in service.savePreferences() }
+                }
+
+                Toggle("Show elapsed time", isOn: $service.showElapsedTime)
+                    .onChange(of: service.showElapsedTime) { _ in service.savePreferences() }
+
+                Toggle("Hide from screen sharing", isOn: $service.hideFromScreenShare)
+                    .onChange(of: service.hideFromScreenShare) { _ in service.savePreferences() }
+
+                Toggle("Auto next page", isOn: $service.autoNextPage)
+                    .onChange(of: service.autoNextPage) { _ in service.savePreferences() }
+            } header: {
+                Text("Teleprompter Window & Display")
+            }
+            .disabled(!teleprompterEnabled)
+
+            // MARK: - 7. External Display Section
+            Section {
+                Picker("Mode", selection: $service.externalDisplayMode) {
+                    ForEach(ExternalDisplayMode.allCases) { mode in
+                        Label(mode.label, systemImage: mode.icon).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: service.externalDisplayMode) { _ in service.savePreferences() }
+
+                if service.externalDisplayMode != .off {
+                    let externalScreens = NSScreen.screens.filter { $0 != NSScreen.main }
+                    if externalScreens.isEmpty {
+                        Text("No external display detected")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("Target Screen", selection: $service.externalScreenID) {
+                            ForEach(externalScreens, id: \.displayID) { scr in
+                                Text(scr.localizedName).tag(scr.displayID)
+                            }
+                        }
+                        .onChange(of: service.externalScreenID) { _ in service.savePreferences() }
+                    }
+
+                    if service.externalDisplayMode == .mirror {
+                        Picker("Mirror Axis", selection: $service.externalMirrorAxis) {
+                            ForEach(ExternalMirrorAxis.allCases) { axis in
+                                Text(axis.label).tag(axis)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: service.externalMirrorAxis) { _ in service.savePreferences() }
+                    }
+                }
+            } header: {
+                Text("External Display")
+            }
+            .disabled(!teleprompterEnabled)
+
+            // MARK: - 8. Remote Control Section
+            Section {
+                Toggle("Enable Browser Remote", isOn: $service.remoteServerEnabled)
+                    .onChange(of: service.remoteServerEnabled) { _, on in
+                        service.savePreferences()
+                        if on {
+                            service.remoteServer.start()
+                        } else {
+                            service.remoteServer.stop()
+                        }
+                    }
+
+                if service.remoteServerEnabled {
+                    remoteViewerDetails
+                }
+            } header: {
+                Text("Remote Control")
+            }
+            .disabled(!teleprompterEnabled)
+
+            // MARK: - 9. Director Studio Section
+            Section {
+                Toggle("Enable Director Server", isOn: $service.directorServerEnabled)
+                    .onChange(of: service.directorServerEnabled) { _, on in
+                        service.savePreferences()
+                        if on {
+                            service.directorServer.start()
+                        } else {
+                            service.directorServer.stop()
+                        }
+                    }
+
+                if service.directorServerEnabled {
+                    directorStudioDetails
+                }
+            } header: {
+                Text("Director Studio")
+            }
+            .disabled(!teleprompterEnabled)
+
+            // MARK: - 10. Reset Section
+            Section {
+                Button(role: .destructive) {
+                    confirmingReset = true
+                } label: {
+                    HStack {
+                        Image(systemName: "arrow.counterclockwise")
+                        Text("Reset Teleprompter Settings")
+                    }
+                }
+                .confirmationDialog(
+                    "Reset Teleprompter Settings?",
+                    isPresented: $confirmingReset,
+                    titleVisibility: .visible
+                ) {
+                    Button("Reset to Defaults", role: .destructive) {
+                        service.resetSettings()
+                    }
+                    Button("Cancel", role: .cancel) { }
+                } message: {
+                    Text("This will reset all appearance, guidance, reading, display, and server settings to their defaults. Your scripts and pages will not be deleted.")
+                }
+            } header: {
+                Text("Reset")
+            }
+            .disabled(!teleprompterEnabled)
         }
-        .toggleStyle(.switch)
+        .formStyle(.grouped)
         .onAppear {
             inputDevices = AudioInputDevice.allInputDevices()
+        }
+        .sheet(isPresented: Binding(
+            get: { editingPageIndex != nil },
+            set: { if !$0 { closePageEditor() } }
+        )) {
+            if let idx = editingPageIndex {
+                PageEditorDialog(
+                    pageIndex: idx,
+                    text: $editingPageText,
+                    service: service,
+                    dictation: dictation,
+                    onDone: { closePageEditor() }
+                )
+            }
         }
         .alert("Import Failed", isPresented: $showingImportError) {
             Button("OK") { }
@@ -117,616 +430,396 @@ struct TeleprompterSettings: View {
         }
     }
 
-    // MARK: - Master Feature Card
+    // MARK: - Page Row Component
 
-    @ViewBuilder
-    private var masterFeatureCard: some View {
-        SettingsCard {
-            SettingsRow(
-                symbol: AppFeature.teleprompter.symbolName,
-                title: "Enable Teleprompter",
-                caption: strings.hubDescription
-            ) {
-                Toggle("Enable Teleprompter", isOn: $teleprompterEnabled)
-                    .labelsHidden()
+    private func pageRow(index: Int) -> some View {
+        let isSelected = index == service.currentPageIndex
+        let pageContent = (index < pagesList.count) ? pagesList[index] : ""
+        let snippet = previewSnippet(pageContent)
+
+        return HStack(spacing: 12) {
+            Button {
+                service.jumpToPage(index: index)
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 14))
+                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Page \(index + 1)")
+                            .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                            .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+
+                        Text(snippet.isEmpty ? "Empty page" : snippet)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
             }
+            .buttonStyle(.plain)
 
-            if teleprompterEnabled {
+            Spacer()
+
+            Menu {
+                Button {
+                    openPageEditor(index: index)
+                } label: {
+                    Label("Edit Page...", systemImage: "pencil")
+                }
+
+                Button {
+                    duplicatePage(at: index)
+                } label: {
+                    Label("Duplicate Page", systemImage: "plus.square.on.square")
+                }
+
                 Divider()
 
-                HStack(spacing: 12) {
-                    Button {
-                        service.toggle()
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: service.isRunning && !service.isPaused ? "pause.fill" : "play.fill")
-                                .font(.system(size: 13, weight: .semibold))
-                            Text(service.isRunning && !service.isPaused ? strings.pause : (service.isRunning ? strings.resume : strings.start))
-                                .font(.system(size: 13, weight: .semibold))
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 7)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(service.isRunning && !service.isPaused ? .orange : .accentColor)
-
-                    if service.isRunning {
-                        Button {
-                            service.stop()
-                        } label: {
-                            Label(strings.stop, systemImage: "stop.fill")
-                                .font(.system(size: 13, weight: .medium))
-                        }
-                        .buttonStyle(.bordered)
-                    }
-
-                    Spacer()
-
-                    // Status pill
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(service.isRunning ? (service.isPaused ? Color.yellow : Color.green) : Color.secondary.opacity(0.4))
-                            .frame(width: 8, height: 8)
-
-                        Text(service.isRunning ? (service.isPaused ? "Paused" : (service.overlayMode == .notch ? "Active in Dynamic Island" : "Active in Floating HUD")) : "Ready")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(service.isRunning ? .primary : .secondary)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.secondary.opacity(0.12), in: Capsule())
+                Button(role: .destructive) {
+                    deletePage(at: index)
+                } label: {
+                    Label("Delete Page", systemImage: "trash")
                 }
+                .disabled(pagesList.count <= 1)
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.secondary)
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+
+            Button("Edit") {
+                openPageEditor(index: index)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            openPageEditor(index: index)
+        }
+        .onTapGesture(count: 1) {
+            service.jumpToPage(index: index)
+        }
+    }
+
+    private func previewSnippet(_ text: String) -> String {
+        let clean = text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        if clean.count > 65 {
+            return clean.prefix(65) + "..."
+        }
+        return clean
+    }
+
+    // MARK: - Page Actions
+
+    private func openPageEditor(index: Int) {
+        if service.pages.isEmpty {
+            service.pages = [service.text]
+        }
+        if index < service.pages.count {
+            editingPageIndex = index
+            editingPageText = service.pages[index]
+        }
+    }
+
+    private func closePageEditor() {
+        if let idx = editingPageIndex, idx < service.pages.count {
+            service.pages[idx] = editingPageText
+            service.savePreferences()
+        }
+        editingPageIndex = nil
+    }
+
+    private func addNewPage() {
+        service.addPage()
+        let newIdx = max(0, service.pages.count - 1)
+        editingPageIndex = newIdx
+        editingPageText = service.pages[newIdx]
+    }
+
+    private func duplicatePage(at index: Int) {
+        guard index < pagesList.count else { return }
+        if service.pages.isEmpty {
+            service.pages = [service.text]
+        }
+        let copy = service.pages[index]
+        service.pages.insert(copy, at: index + 1)
+        service.savePreferences()
+    }
+
+    private func deletePage(at index: Int) {
+        service.removePage(at: index)
+    }
+
+    // MARK: - Remote Details
+
+    @ViewBuilder
+    private var remoteViewerDetails: some View {
+        let ip = TeleprompterServer.localIPAddress() ?? "localhost"
+        let urlStr = "http://\(ip):\(service.remoteServer.httpPort)"
+
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Connect from any device on your local network:")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                Text(urlStr)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+
+                Button("Copy Link") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(urlStr, forType: .string)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            if let qr = generateQRCode(from: urlStr) {
+                Image(nsImage: qr)
+                    .interpolation(.none)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 110, height: 110)
+                    .padding(6)
+                    .background(Color.white)
+                    .cornerRadius(8)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var directorStudioDetails: some View {
+        let ip = TeleprompterServer.localIPAddress() ?? "localhost"
+        let urlStr = "http://\(ip):\(service.directorServer.httpPort)"
+
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text(urlStr)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+
+                Button("Copy Link") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(urlStr, forType: .string)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(service.directorServer.connectedClients > 0 ? Color.green : Color.orange)
+                        .frame(width: 7, height: 7)
+                    Text("\(service.directorServer.connectedClients) connected")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let qr = generateQRCode(from: urlStr) {
+                Image(nsImage: qr)
+                    .interpolation(.none)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 110, height: 110)
+                    .padding(6)
+                    .background(Color.white)
+                    .cornerRadius(8)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    // MARK: - PPTX Import & QR Generation
+
+    private func chooseAndImportPPTX() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.init(filenameExtension: "pptx")].compactMap { $0 }
+
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try service.importPPTX(url: url)
+            } catch {
+                importErrorMessage = error.localizedDescription
+                showingImportError = true
             }
         }
     }
 
-    // MARK: - 1. Script Studio Card
+    private func generateQRCode(from string: String) -> NSImage? {
+        let context = CIContext()
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(string.utf8)
+        filter.correctionLevel = "M"
 
-    @ViewBuilder
-    private var scriptStudioCard: some View {
-        SettingsCard(title: "Script Studio & Notes") {
+        guard let outputImage = filter.outputImage else { return nil }
+        let scaled = outputImage.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
+        guard let cgImage = context.createCGImage(scaled, from: scaled.extent) else { return nil }
+        return NSImage(cgImage: cgImage, size: NSSize(width: 120, height: 120))
+    }
+}
 
-            // Multi-page Tabs Bar
-            HStack(spacing: 8) {
-                if service.pages.isEmpty {
-                    Text("Page 1")
-                        .font(.system(size: 12, weight: .semibold))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 4)
-                        .background(Color.accentColor.opacity(0.2), in: Capsule())
-                        .foregroundStyle(Color.accentColor)
-                } else {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            ForEach(service.pages.indices, id: \.self) { idx in
-                                let isCurrent = idx == service.currentPageIndex
-                                let isRead = service.readPages.contains(idx)
-                                Button {
-                                    service.jumpToPage(index: idx)
-                                } label: {
-                                    HStack(spacing: 4) {
-                                        Text("Page \(idx + 1)")
-                                            .font(.system(size: 12, weight: isCurrent ? .semibold : .regular))
-                                        if isRead {
-                                            Image(systemName: "checkmark")
-                                                .font(.system(size: 10, weight: .bold))
-                                                .foregroundStyle(.green)
-                                        }
-                                    }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 4)
-                                    .background(isCurrent ? Color.accentColor.opacity(0.25) : Color.secondary.opacity(0.12), in: Capsule())
-                                    .foregroundStyle(isCurrent ? Color.accentColor : Color.primary)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                }
+// MARK: - Dedicated Page Editor Dialog
 
-                Button {
-                    service.addPage()
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .medium))
-                        .padding(5)
-                        .background(Color.secondary.opacity(0.12), in: Circle())
-                }
-                .buttonStyle(.plain)
-                .help("Add New Page")
+struct PageEditorDialog: View {
+    let pageIndex: Int
+    @Binding var text: String
+    @ObservedObject var service: TeleprompterService
+    @ObservedObject var dictation: DictationManager
+    var onDone: () -> Void
 
-                if service.pages.count > 1 {
-                    Button {
-                        service.removePage(at: service.currentPageIndex)
-                    } label: {
-                        Image(systemName: "trash")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.red.opacity(0.8))
-                            .padding(5)
-                            .background(Color.secondary.opacity(0.12), in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .help("Delete Current Page")
-                }
+    @State private var caretPosition: Int? = nil
+    @State private var editorCaretPosition: Int = 0
+    @State private var dictationHighlightRange: NSRange? = nil
+    @State private var highlightClearTimer: Timer?
 
-                Spacer()
-            }
+    @State private var segmentStart: Int = 0
+    @State private var segmentLength: Int = 0
+    @State private var segmentNeedsSeparator: Bool = false
+    @State private var spokenSkipOffset: Int = 0
+    @State private var lastRawSpokenLength: Int = 0
 
-            // Dictation & Tools Bar
+    private var wordsCount: Int {
+        splitTextIntoWords(text).count
+    }
+
+    private var estimatedReadingTimeText: String {
+        let words = wordsCount
+        guard words > 0 else { return "0s" }
+        let seconds = Int(Double(words) / 130.0 * 60.0)
+        let mins = seconds / 60
+        let remSecs = seconds % 60
+        return mins > 0 ? "~\(mins)m \(remSecs)s" : "~\(remSecs)s"
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header bar
             HStack(spacing: 12) {
+                Text("Page \(pageIndex + 1) Script")
+                    .font(.headline)
+
+                Menu {
+                    Button("[PAUSE]") { insertCue("PAUSE") }
+                    Button("[LOOK AT CAMERA]") { insertCue("LOOK AT CAMERA") }
+                    Button("[SPEED UP]") { insertCue("SPEED UP") }
+                    Button("[SLOW DOWN]") { insertCue("SLOW DOWN") }
+                    Button("[SMILE]") { insertCue("SMILE") }
+                    Button("[TAKE A BREATH]") { insertCue("TAKE A BREATH") }
+                } label: {
+                    Label("Insert Cue", systemImage: "sparkles")
+                }
+                .menuStyle(.borderedButton)
+
                 Button {
                     toggleDictation()
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: dictation.isRecording ? "stop.circle.fill" : "mic.fill")
-                            .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(dictation.isRecording ? .red : .primary)
                         Text(dictation.isRecording ? "Listening..." : "Dictate")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(dictation.isRecording ? Color.red.opacity(0.15) : Color.secondary.opacity(0.12), in: Capsule())
-                }
-                .buttonStyle(.plain)
-
-                if dictation.isRecording {
-                    DictationWaveformView(levels: dictation.audioLevels, color: .red)
-                }
-
-                Spacer()
-
-                // Insert Annotation Menu
-                Menu {
-                    Button("Insert [pause]") { insertAnnotation("[pause]") }
-                    Button("Insert [smile]") { insertAnnotation("[smile]") }
-                    Button("Insert [nod]") { insertAnnotation("[nod]") }
-                    Button("Insert [wave]") { insertAnnotation("[wave]") }
-                } label: {
-                    Label("Insert Cue", systemImage: "sparkles")
-                        .font(.system(size: 12))
-                }
-                .menuStyle(.borderlessButton)
-                .frame(width: 110)
-
-                // Clear Button
-                Button("Clear") {
-                    service.currentScript = ""
-                }
-                .buttonStyle(.borderless)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-            }
-
-            // Highlighting Text Editor Area
-            HighlightingTextEditor(
-                text: scriptBinding,
-                font: service.fontFamily.nsFont(ofSize: 15),
-                highlightRange: dictationHighlightRange,
-                caretPosition: $dictationCaretPosition,
-                editorCaretPosition: $editorCaretPosition
-            )
-            .frame(minHeight: 200, maxHeight: 360)
-            .padding(10)
-            .background(Color(NSColor.textBackgroundColor).opacity(0.15), in: RoundedRectangle(cornerRadius: 10))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-            )
-
-            // Footer Stats Bar
-            HStack(spacing: 16) {
-                Text("\(service.totalWordCount) words")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Text("Reading time: \(estimatedReadingTimeText)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Text("\(service.currentScript.count) chars")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-
-                if let dictErr = dictation.error {
-                    Text(dictErr)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .lineLimit(1)
-                }
-            }
-        }
-    }
-
-    // MARK: - 2. Guidance Mode Card
-
-    @ViewBuilder
-    private var guidanceModeCard: some View {
-        SettingsCard(title: "Speech & Scroll Guidance") {
-            SettingsRow(
-                symbol: service.guidanceMode.icon,
-                title: "Tracking Mode",
-                caption: service.guidanceMode.subtitle
-            ) {
-                Picker("Mode", selection: $service.guidanceMode) {
-                    ForEach(GuidanceMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 280)
-                .onChange(of: service.guidanceMode) {
-                    service.savePreferences()
-                }
-            }
-
-            if service.guidanceMode != .wordTracking {
-                SettingsRow(
-                    symbol: "gauge.with.dots.needle.50percent",
-                    title: "Scroll Speed",
-                    caption: String(format: "%.1f words per second", service.scrollSpeed)
-                ) {
-                    HStack(spacing: 8) {
-                        Slider(value: $service.scrollSpeed, in: 0.5...8.0, step: 0.5)
-                            .frame(width: 140)
-                            .onChange(of: service.scrollSpeed) {
-                                service.savePreferences()
-                            }
-                        Text(String(format: "%.1f w/s", service.scrollSpeed))
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .frame(width: 44, alignment: .trailing)
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - 3. Display & Overlay Card
-
-    @ViewBuilder
-    private var displayOverlayCard: some View {
-        SettingsCard(title: "Display & Appearance") {
-            SettingsRow(
-                symbol: service.overlayMode.icon,
-                title: "Prompter Placement",
-                caption: service.overlayMode == .notch ? "Appears in Dynamic Island under the camera" : "Floats anywhere as a draggable HUD window"
-            ) {
-                Picker("Placement", selection: $service.overlayMode) {
-                    ForEach(TeleprompterOverlayMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 220)
-                .onChange(of: service.overlayMode) {
-                    service.savePreferences()
-                }
-            }
-
-            SettingsRow(symbol: "textformat", title: "Font Family", caption: "Typography used for displayed prompter text") {
-                Picker("", selection: $service.fontFamily) {
-                    ForEach(TeleprompterFontFamilyPreset.allCases) { font in
-                        Text(font.label).tag(font)
-                    }
-                }
-                .pickerStyle(.menu)
-                .frame(width: 150)
-                .onChange(of: service.fontFamily) {
-                    service.savePreferences()
-                }
-            }
-
-            SettingsRow(symbol: "textformat.size", title: "Font Size", caption: "Size of displayed speech text") {
-                Picker("", selection: $service.fontSize) {
-                    ForEach(TeleprompterFontSizePreset.allCases) { size in
-                        Text(size.label).tag(size)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 180)
-                .onChange(of: service.fontSize) {
-                    service.savePreferences()
-                }
-            }
-
-            SettingsRow(symbol: "paintpalette.fill", title: "Highlight Accent", caption: "Color tracking active spoken words") {
-                HStack(spacing: 8) {
-                    ForEach(TeleprompterHighlightColorPreset.allCases) { preset in
-                        Button {
-                            service.highlightColor = preset
-                            service.savePreferences()
-                        } label: {
-                            Circle()
-                                .fill(preset.color)
-                                .frame(width: 20, height: 20)
-                                .overlay(
-                                    Circle()
-                                        .strokeBorder(Color.white, lineWidth: service.highlightColor == preset ? 2 : 0)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - 4. External Display Card
-
-    @ViewBuilder
-    private var externalDisplayCard: some View {
-        SettingsCard(title: "External Display & Mirroring") {
-            SettingsRow(
-                symbol: "display.2",
-                title: "External Display Output",
-                caption: "Project onto an external screen, projector, or teleprompter beam-splitter glass"
-            ) {
-                Picker("", selection: $service.externalDisplayMode) {
-                    ForEach(ExternalDisplayMode.allCases) { mode in
-                        Label(mode.label, systemImage: mode.icon).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 220)
-                .onChange(of: service.externalDisplayMode) {
-                    service.savePreferences()
-                }
-            }
-
-            if service.externalDisplayMode != .off {
-                Divider()
-
-                let externalScreens = NSScreen.screens.filter { $0 != NSScreen.main }
-                SettingsRow(
-                    symbol: "display",
-                    title: "Target Screen",
-                    caption: externalScreens.isEmpty ? "No external display detected" : "Select target monitor for prompter output"
-                ) {
-                    if externalScreens.isEmpty {
-                        Text("None detected")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Picker("", selection: $service.externalScreenID) {
-                            ForEach(externalScreens, id: \.displayID) { scr in
-                                Text(scr.localizedName).tag(scr.displayID)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .frame(width: 180)
-                        .onChange(of: service.externalScreenID) {
-                            service.savePreferences()
+                        if dictation.isRecording {
+                            DictationWaveformView(levels: dictation.audioLevels)
                         }
                     }
-                }
-
-                if service.externalDisplayMode == .mirror {
-                    SettingsRow(
-                        symbol: "arrow.left.and.right.righttriangle.left.righttriangle.right",
-                        title: "Mirror Axis",
-                        caption: "Invert text orientation for reflective beam splitter glass rigs"
-                    ) {
-                        Picker("", selection: $service.externalMirrorAxis) {
-                            ForEach(ExternalMirrorAxis.allCases) { axis in
-                                Text(axis.label).tag(axis)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .frame(width: 180)
-                        .onChange(of: service.externalMirrorAxis) {
-                            service.savePreferences()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - 5. Microphone & Speech Card
-
-    @ViewBuilder
-    private var microphoneSpeechCard: some View {
-        SettingsCard(title: "Microphone & Speech") {
-            SettingsRow(
-                symbol: "mic",
-                title: "Input Microphone",
-                caption: "Audio source for speech recognition & voice-guided scrolling"
-            ) {
-                Picker("", selection: $service.selectedMicUID) {
-                    Text("System Default").tag("")
-                    ForEach(inputDevices) { dev in
-                        Text(dev.name).tag(dev.uid)
-                    }
-                }
-                .pickerStyle(.menu)
-                .frame(width: 180)
-                .onChange(of: service.selectedMicUID) {
-                    service.savePreferences()
-                }
-            }
-
-            SettingsRow(
-                symbol: "globe",
-                title: "Speech Language",
-                caption: "Language locale for on-device Apple Speech recognition"
-            ) {
-                Picker("", selection: $service.speechLocale) {
-                    ForEach(SpeechLocaleSupport.supportedLocales, id: \.identifier) { loc in
-                        Text(Locale.current.localizedString(forIdentifier: loc.identifier) ?? loc.identifier)
-                            .tag(loc.identifier)
-                    }
-                }
-                .pickerStyle(.menu)
-                .frame(width: 180)
-                .onChange(of: service.speechLocale) {
-                    service.savePreferences()
-                }
-            }
-        }
-    }
-
-    // MARK: - 6. Import Script Card
-
-    @ViewBuilder
-    private var importScriptCard: some View {
-        SettingsCard(title: "Import Script & Slides") {
-            SettingsRow(
-                symbol: "doc.badge.plus",
-                title: "PowerPoint Presentation",
-                caption: "Import slides and presenter speaker notes from a .pptx file"
-            ) {
-                Button("Import .pptx...") {
-                    chooseAndImportPPTX()
                 }
                 .buttonStyle(.bordered)
+
+                Spacer()
+
+                Button("Done") {
+                    if dictation.isRecording {
+                        stopDictation()
+                    }
+                    onDone()
+                }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(NSColor.windowBackgroundColor))
+
+            Divider()
+
+            // Highlighting Text Editor with Undo, Cut, Copy, Paste
+            HighlightingTextEditor(
+                text: $text,
+                font: service.fontFamily.nsFont(ofSize: service.fontSize.pointSize),
+                highlightRange: dictationHighlightRange,
+                cueColor: service.cueColor.nsColor,
+                cueAlpha: service.cueBrightness.alpha,
+                caretPosition: $caretPosition,
+                editorCaretPosition: $editorCaretPosition
+            )
+            .padding(12)
+            .background(Color(NSColor.textBackgroundColor))
+
+            Divider()
+
+            // Shifted statistics bar (0 word, reading time, characters)
+            HStack(spacing: 20) {
+                HStack(spacing: 5) {
+                    Image(systemName: "text.word.spacing")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Text("\(wordsCount) words")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack(spacing: 5) {
+                    Image(systemName: "character")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Text("\(text.count) characters")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack(spacing: 5) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Text("\(estimatedReadingTimeText) est. reading time")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color(NSColor.windowBackgroundColor))
         }
+        .frame(minWidth: 580, idealWidth: 640, minHeight: 460, idealHeight: 520)
     }
 
-    // MARK: - 7. Remote Controls Card
-
-    @ViewBuilder
-    private var remoteControlsCard: some View {
-        SettingsCard(title: "Remote Controls & Director Studio") {
-            Picker("", selection: $selectedRemoteTab) {
-                Text("Viewer Remote (Phone / Web)").tag(0)
-                Text("Director Studio (Live Production)").tag(1)
-            }
-            .pickerStyle(.segmented)
-            .padding(.bottom, 4)
-
-            if selectedRemoteTab == 0 {
-                // Viewer Remote
-                SettingsRow(
-                    symbol: "iphone.and.arrow.forward",
-                    title: "Browser Remote Control",
-                    caption: "Control scroll speed and pagination from any mobile or desktop browser"
-                ) {
-                    Toggle("", isOn: $service.remoteServerEnabled)
-                        .toggleStyle(.switch)
-                        .onChange(of: service.remoteServerEnabled) { _, enabled in
-                            service.savePreferences()
-                            if enabled {
-                                service.remoteServer.start()
-                            } else {
-                                service.remoteServer.stop()
-                            }
-                        }
-                }
-
-                if service.remoteServerEnabled {
-                    let ip = TeleprompterServer.localIPAddress() ?? "localhost"
-                    let urlStr = "http://\(ip):\(service.remoteServer.httpPort)"
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Connect using any browser on the local Wi-Fi network:")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.leading, settingsRowTextInset)
-
-                        HStack(spacing: 8) {
-                            Text(urlStr)
-                                .font(.system(.body, design: .monospaced))
-                                .textSelection(.enabled)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
-
-                            Button("Copy Link") {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(urlStr, forType: .string)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                        .padding(.leading, settingsRowTextInset)
-
-                        if let qr = generateQRCode(from: urlStr) {
-                            Image(nsImage: qr)
-                                .interpolation(.none)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 120, height: 120)
-                                .padding(8)
-                                .background(Color.white)
-                                .cornerRadius(10)
-                                .padding(.leading, settingsRowTextInset)
-                        }
-                    }
-                    .padding(.top, 4)
-                }
-            } else {
-                // Director Studio
-                SettingsRow(
-                    symbol: "person.badge.shield.checkmark",
-                    title: "Director Studio Server",
-                    caption: "Live script editing, remote prompting, and multi-client cueing"
-                ) {
-                    Toggle("", isOn: $service.directorServerEnabled)
-                        .toggleStyle(.switch)
-                        .onChange(of: service.directorServerEnabled) { _, enabled in
-                            service.savePreferences()
-                            if enabled {
-                                service.directorServer.start()
-                            } else {
-                                service.directorServer.stop()
-                            }
-                        }
-                }
-
-                if service.directorServerEnabled {
-                    let ip = TeleprompterServer.localIPAddress() ?? "localhost"
-                    let urlStr = "http://\(ip):\(service.directorServer.httpPort)"
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            Text(urlStr)
-                                .font(.system(.body, design: .monospaced))
-                                .textSelection(.enabled)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
-
-                            Button("Copy Link") {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(urlStr, forType: .string)
-                            }
-                            .buttonStyle(.bordered)
-
-                            Spacer()
-
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(service.directorServer.connectedClients > 0 ? Color.green : Color.orange)
-                                    .frame(width: 8, height: 8)
-                                Text("\(service.directorServer.connectedClients) connected")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(.leading, settingsRowTextInset)
-
-                        if let qr = generateQRCode(from: urlStr) {
-                            Image(nsImage: qr)
-                                .interpolation(.none)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 120, height: 120)
-                                .padding(8)
-                                .background(Color.white)
-                                .cornerRadius(10)
-                                .padding(.leading, settingsRowTextInset)
-                        }
-                    }
-                    .padding(.top, 4)
-                }
-            }
-        }
+    private func insertCue(_ cue: String) {
+        let caret = min(editorCaretPosition, text.count)
+        let insertion = " [\(cue)] "
+        text.insert(contentsOf: insertion, at: text.index(text.startIndex, offsetBy: caret))
+        caretPosition = caret + insertion.count
     }
-
-    // MARK: - Dictation Actions
 
     private func toggleDictation() {
         if dictation.isRecording {
@@ -758,7 +851,6 @@ struct TeleprompterSettings: View {
             }
             guard !effectiveText.isEmpty else { return }
 
-            var text = service.currentScript
             let safeStart = min(segmentStart, text.count)
             let removeStart = text.index(text.startIndex, offsetBy: safeStart)
             let safeLen = min(segmentLength, text.count - safeStart)
@@ -771,7 +863,6 @@ struct TeleprompterSettings: View {
 
             let prevLen = segmentLength
             segmentLength = newSegment.count
-            service.currentScript = text
 
             let newChars = segmentLength - prevLen
             if newChars > 0 {
@@ -779,7 +870,7 @@ struct TeleprompterSettings: View {
                 dictationHighlightRange = NSRange(location: highlightStart, length: newChars)
             }
 
-            dictationCaretPosition = segmentStart + segmentLength
+            caretPosition = segmentStart + segmentLength
 
             highlightClearTimer?.invalidate()
             highlightClearTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { _ in
@@ -800,53 +891,11 @@ struct TeleprompterSettings: View {
     }
 
     private func beginNewSegment() {
-        let text = service.currentScript
         let caret = min(editorCaretPosition, text.count)
         spokenSkipOffset = lastRawSpokenLength
-
         let charBefore = caret > 0 ? text[text.index(text.startIndex, offsetBy: caret - 1)] : "\n"
         segmentNeedsSeparator = !(charBefore == " " || charBefore == "\n" || caret == 0)
         segmentStart = caret
         segmentLength = 0
-    }
-
-    private func insertAnnotation(_ tag: String) {
-        var text = service.currentScript
-        let caret = min(editorCaretPosition, text.count)
-        let insertion = " \(tag) "
-        text.insert(contentsOf: insertion, at: text.index(text.startIndex, offsetBy: caret))
-        service.currentScript = text
-        dictationCaretPosition = caret + insertion.count
-    }
-
-    // MARK: - PPTX Import & QR Code
-
-    private func chooseAndImportPPTX() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.init(filenameExtension: "pptx")].compactMap { $0 }
-
-        if panel.runModal() == .OK, let url = panel.url {
-            do {
-                try service.importPPTX(url: url)
-            } catch {
-                importErrorMessage = error.localizedDescription
-                showingImportError = true
-            }
-        }
-    }
-
-    private func generateQRCode(from string: String) -> NSImage? {
-        let context = CIContext()
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(string.utf8)
-        filter.correctionLevel = "M"
-
-        guard let outputImage = filter.outputImage else { return nil }
-        let scaled = outputImage.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
-        guard let cgImage = context.createCGImage(scaled, from: scaled.extent) else { return nil }
-        return NSImage(cgImage: cgImage, size: NSSize(width: 140, height: 140))
     }
 }

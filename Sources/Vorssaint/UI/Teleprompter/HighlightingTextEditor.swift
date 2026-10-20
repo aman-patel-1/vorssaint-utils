@@ -9,6 +9,8 @@ struct HighlightingTextEditor: NSViewRepresentable {
     @Binding var text: String
     var font: NSFont = .systemFont(ofSize: 16, weight: .regular)
     var highlightRange: NSRange? = nil
+    var cueColor: NSColor = NSColor.systemYellow
+    var cueAlpha: CGFloat = 0.8
     @Binding var caretPosition: Int?
     @Binding var editorCaretPosition: Int
 
@@ -153,10 +155,11 @@ struct HighlightingTextEditor: NSViewRepresentable {
             if let pattern = Self.annotationPattern {
                 let matches = pattern.matches(in: text, options: [], range: fullRange)
                 for match in matches {
+                    let cueCol = parent.cueColor.withAlphaComponent(parent.cueAlpha)
                     let annotationAttributes: [NSAttributedString.Key: Any] = [
                         .font: NSFontManager.shared.convert(parent.font, toHaveTrait: .italicFontMask),
-                        .foregroundColor: NSColor.secondaryLabelColor,
-                        .backgroundColor: NSColor.secondaryLabelColor.withAlphaComponent(0.08)
+                        .foregroundColor: cueCol,
+                        .backgroundColor: cueCol.withAlphaComponent(parent.cueAlpha * 0.15)
                     ]
                     textStorage.addAttributes(annotationAttributes, range: match.range)
                 }

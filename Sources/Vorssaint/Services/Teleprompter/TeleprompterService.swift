@@ -24,6 +24,19 @@ final class TeleprompterService: ObservableObject {
     @Published var fontSize: TeleprompterFontSizePreset = .sm
     @Published var fontFamily: TeleprompterFontFamilyPreset = .sans
     @Published var highlightColor: TeleprompterHighlightColorPreset = .yellow
+    @Published var cueColor: TeleprompterCueColorPreset = .yellow
+    @Published var cueBrightness: TeleprompterCueBrightness = .medium
+    @Published var windowWidth: Double = 560.0
+    @Published var windowHeight: Double = 280.0
+    @Published var readingPosition: TeleprompterReadingPosition = .centered
+    @Published var displayTargetMode: TeleprompterDisplayTargetMode = .followMouse
+    @Published var showParagraphDividers: Bool = false
+    @Published var showLastSpokenWords: Bool = true
+    @Published var keepScreenAwake: Bool = true
+    @Published var showElapsedTime: Bool = true
+    @Published var hideFromScreenShare: Bool = true
+    @Published var autoNextPage: Bool = false
+    @Published var overlayTransparency: Double = 0.15
     @Published var speechLocale: String = "en-US"
     @Published var selectedMicUID: String = ""
     @Published var remoteServerEnabled: Bool = false
@@ -137,6 +150,43 @@ final class TeleprompterService: ObservableObject {
            let color = TeleprompterHighlightColorPreset(rawValue: colorStr) {
             highlightColor = color
         }
+        if let cueStr = defaults.string(forKey: DefaultsKey.teleprompterCueColor),
+           let cc = TeleprompterCueColorPreset(rawValue: cueStr) {
+            cueColor = cc
+        }
+        if let brightStr = defaults.string(forKey: DefaultsKey.teleprompterCueBrightness),
+           let cb = TeleprompterCueBrightness(rawValue: brightStr) {
+            cueBrightness = cb
+        }
+        let w = defaults.double(forKey: DefaultsKey.teleprompterWidth)
+        if w >= 300 { windowWidth = w }
+        let h = defaults.double(forKey: DefaultsKey.teleprompterHeight)
+        if h >= 120 { windowHeight = h }
+        if let posStr = defaults.string(forKey: DefaultsKey.teleprompterReadingPosition),
+           let rp = TeleprompterReadingPosition(rawValue: posStr) {
+            readingPosition = rp
+        }
+        if let targetStr = defaults.string(forKey: DefaultsKey.teleprompterDisplayTargetMode),
+           let tm = TeleprompterDisplayTargetMode(rawValue: targetStr) {
+            displayTargetMode = tm
+        }
+        showParagraphDividers = defaults.bool(forKey: DefaultsKey.teleprompterShowParagraphDividers)
+        if defaults.object(forKey: DefaultsKey.teleprompterShowLastSpokenWords) != nil {
+            showLastSpokenWords = defaults.bool(forKey: DefaultsKey.teleprompterShowLastSpokenWords)
+        }
+        if defaults.object(forKey: DefaultsKey.teleprompterKeepScreenAwake) != nil {
+            keepScreenAwake = defaults.bool(forKey: DefaultsKey.teleprompterKeepScreenAwake)
+        }
+        if defaults.object(forKey: DefaultsKey.teleprompterShowElapsedTime) != nil {
+            showElapsedTime = defaults.bool(forKey: DefaultsKey.teleprompterShowElapsedTime)
+        }
+        if defaults.object(forKey: DefaultsKey.teleprompterHideFromScreenShare) != nil {
+            hideFromScreenShare = defaults.bool(forKey: DefaultsKey.teleprompterHideFromScreenShare)
+        }
+        autoNextPage = defaults.bool(forKey: DefaultsKey.teleprompterAutoNextPage)
+        if defaults.object(forKey: DefaultsKey.teleprompterOverlayTransparency) != nil {
+            overlayTransparency = defaults.double(forKey: DefaultsKey.teleprompterOverlayTransparency)
+        }
         if let locale = defaults.string(forKey: DefaultsKey.teleprompterSpeechLanguage), !locale.isEmpty {
             speechLocale = locale
         } else {
@@ -172,6 +222,19 @@ final class TeleprompterService: ObservableObject {
         defaults.set(fontSize.rawValue, forKey: DefaultsKey.teleprompterFontSize)
         defaults.set(fontFamily.rawValue, forKey: DefaultsKey.teleprompterFontFamily)
         defaults.set(highlightColor.rawValue, forKey: DefaultsKey.teleprompterHighlightColor)
+        defaults.set(cueColor.rawValue, forKey: DefaultsKey.teleprompterCueColor)
+        defaults.set(cueBrightness.rawValue, forKey: DefaultsKey.teleprompterCueBrightness)
+        defaults.set(windowWidth, forKey: DefaultsKey.teleprompterWidth)
+        defaults.set(windowHeight, forKey: DefaultsKey.teleprompterHeight)
+        defaults.set(readingPosition.rawValue, forKey: DefaultsKey.teleprompterReadingPosition)
+        defaults.set(displayTargetMode.rawValue, forKey: DefaultsKey.teleprompterDisplayTargetMode)
+        defaults.set(showParagraphDividers, forKey: DefaultsKey.teleprompterShowParagraphDividers)
+        defaults.set(showLastSpokenWords, forKey: DefaultsKey.teleprompterShowLastSpokenWords)
+        defaults.set(keepScreenAwake, forKey: DefaultsKey.teleprompterKeepScreenAwake)
+        defaults.set(showElapsedTime, forKey: DefaultsKey.teleprompterShowElapsedTime)
+        defaults.set(hideFromScreenShare, forKey: DefaultsKey.teleprompterHideFromScreenShare)
+        defaults.set(autoNextPage, forKey: DefaultsKey.teleprompterAutoNextPage)
+        defaults.set(overlayTransparency, forKey: DefaultsKey.teleprompterOverlayTransparency)
         defaults.set(speechLocale, forKey: DefaultsKey.teleprompterSpeechLanguage)
         defaults.set(selectedMicUID, forKey: DefaultsKey.teleprompterSelectedMicUID)
         defaults.set(remoteServerEnabled, forKey: DefaultsKey.teleprompterRemoteServerEnabled)
@@ -179,6 +242,34 @@ final class TeleprompterService: ObservableObject {
         defaults.set(externalDisplayMode.rawValue, forKey: DefaultsKey.teleprompterExternalDisplayMode)
         defaults.set(externalMirrorAxis.rawValue, forKey: DefaultsKey.teleprompterExternalDisplayMirrorAxis)
         defaults.set(Int(externalScreenID), forKey: DefaultsKey.teleprompterExternalScreenID)
+    }
+
+    /// Resets all teleprompter options to defaults, preserving user scripts and pages.
+    func resetSettings() {
+        guidanceMode = .wordTracking
+        overlayMode = .notch
+        scrollSpeed = 2.5
+        fontSize = .sm
+        fontFamily = .sans
+        highlightColor = .yellow
+        cueColor = .yellow
+        cueBrightness = .medium
+        windowWidth = 560.0
+        windowHeight = 280.0
+        readingPosition = .centered
+        displayTargetMode = .followMouse
+        showParagraphDividers = false
+        showLastSpokenWords = true
+        keepScreenAwake = true
+        showElapsedTime = true
+        hideFromScreenShare = true
+        autoNextPage = false
+        overlayTransparency = 0.15
+        externalDisplayMode = .off
+        externalMirrorAxis = .horizontal
+        remoteServerEnabled = false
+        directorServerEnabled = false
+        savePreferences()
     }
 
     private func setupObservers() {
@@ -356,6 +447,9 @@ final class TeleprompterService: ObservableObject {
         } else if overlayMode == .floating {
             floatingWindowVisible = true
             TeleprompterFloatingWindowController.shared.show()
+        } else if overlayMode == .fullscreen {
+            floatingWindowVisible = true
+            TeleprompterFloatingWindowController.shared.showFullscreen()
         }
     }
 

@@ -30,9 +30,29 @@ final class TeleprompterFloatingWindowController: NSWindowController {
         self.init(window: panel)
     }
 
-    func show() {
+    func show(screen: NSScreen? = nil) {
         guard let panel = window as? NSPanel else { return }
+        let targetScreen = screen ?? NSScreen.main ?? NSScreen.screens.first
+        let w = CGFloat(TeleprompterService.shared.windowWidth)
+        let h = CGFloat(TeleprompterService.shared.windowHeight)
+        if let frame = targetScreen?.visibleFrame {
+            let currentX = panel.frame.origin.x
+            let currentY = panel.frame.origin.y
+            let x = currentX > 0 ? currentX : frame.midX - w / 2
+            let y = currentY > 0 ? currentY : frame.midY - h / 2
+            panel.setFrame(NSRect(x: x, y: y, width: w, height: h), display: true)
+        }
         panel.level = .floating
+        panel.orderFrontRegardless()
+    }
+
+    func showFullscreen(screen: NSScreen? = nil) {
+        guard let panel = window as? NSPanel else { return }
+        let targetScreen = screen ?? NSScreen.main ?? NSScreen.screens.first
+        if let frame = targetScreen?.frame {
+            panel.setFrame(frame, display: true)
+        }
+        panel.level = .screenSaver
         panel.orderFrontRegardless()
     }
 
@@ -40,8 +60,8 @@ final class TeleprompterFloatingWindowController: NSWindowController {
         guard let panel = window as? NSPanel else { return }
         let targetScreen = screen ?? NSScreen.main ?? NSScreen.screens.first
         if let frame = targetScreen?.frame {
-            let width: CGFloat = 460
-            let height: CGFloat = 200
+            let width: CGFloat = max(460, CGFloat(TeleprompterService.shared.windowWidth))
+            let height: CGFloat = max(200, CGFloat(TeleprompterService.shared.windowHeight))
             let x = frame.midX - width / 2
             let y = frame.maxY - height - 8
             panel.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)

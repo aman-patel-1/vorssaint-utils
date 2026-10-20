@@ -178,6 +178,96 @@ enum TeleprompterHighlightColorPreset: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Cue Color & Brightness
+
+enum TeleprompterCueColorPreset: String, CaseIterable, Identifiable {
+    case yellow, cyan, purple, orange, green
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .yellow: return "Yellow"
+        case .cyan:   return "Cyan"
+        case .purple: return "Purple"
+        case .orange: return "Orange"
+        case .green:  return "Green"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .yellow: return Color(red: 1.0, green: 0.85, blue: 0.2)
+        case .cyan:   return Color(red: 0.2, green: 0.8, blue: 1.0)
+        case .purple: return Color(red: 0.75, green: 0.4, blue: 1.0)
+        case .orange: return Color(red: 1.0, green: 0.6, blue: 0.2)
+        case .green:  return Color(red: 0.3, green: 0.9, blue: 0.45)
+        }
+    }
+
+    var nsColor: NSColor {
+        switch self {
+        case .yellow: return NSColor(calibratedRed: 1.0, green: 0.85, blue: 0.2, alpha: 1.0)
+        case .cyan:   return NSColor(calibratedRed: 0.2, green: 0.8, blue: 1.0, alpha: 1.0)
+        case .purple: return NSColor(calibratedRed: 0.75, green: 0.4, blue: 1.0, alpha: 1.0)
+        case .orange: return NSColor(calibratedRed: 1.0, green: 0.6, blue: 0.2, alpha: 1.0)
+        case .green:  return NSColor(calibratedRed: 0.3, green: 0.9, blue: 0.45, alpha: 1.0)
+        }
+    }
+}
+
+enum TeleprompterCueBrightness: String, CaseIterable, Identifiable {
+    case dim, low, medium, bright
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .dim:    return "Dim"
+        case .low:    return "Low"
+        case .medium: return "Medium"
+        case .bright: return "Bright"
+        }
+    }
+
+    var alpha: CGFloat {
+        switch self {
+        case .dim:    return 0.35
+        case .low:    return 0.55
+        case .medium: return 0.80
+        case .bright: return 1.00
+        }
+    }
+}
+
+// MARK: - Reading Options
+
+enum TeleprompterReadingPosition: String, CaseIterable, Identifiable {
+    case centered, nearTop
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .centered: return "Centered"
+        case .nearTop:  return "Near Top"
+        }
+    }
+}
+
+enum TeleprompterDisplayTargetMode: String, CaseIterable, Identifiable {
+    case followMouse, fixedDisplay
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .followMouse:  return "Follow Mouse"
+        case .fixedDisplay: return "Fixed Display"
+        }
+    }
+}
+
 // MARK: - Audio Device
 
 struct AudioInputDevice: Identifiable, Hashable {

@@ -228,6 +228,19 @@ enum DefaultsKey {
     static let teleprompterExternalDisplayMode = "teleprompterExternalDisplayMode"
     static let teleprompterExternalDisplayMirrorAxis = "teleprompterExternalDisplayMirrorAxis"
     static let teleprompterExternalScreenID = "teleprompterExternalScreenID"
+    static let teleprompterCueColor = "teleprompterCueColor"
+    static let teleprompterCueBrightness = "teleprompterCueBrightness"
+    static let teleprompterWidth = "teleprompterWidth"
+    static let teleprompterHeight = "teleprompterHeight"
+    static let teleprompterReadingPosition = "teleprompterReadingPosition"
+    static let teleprompterDisplayTargetMode = "teleprompterDisplayTargetMode"
+    static let teleprompterShowParagraphDividers = "teleprompterShowParagraphDividers"
+    static let teleprompterShowLastSpokenWords = "teleprompterShowLastSpokenWords"
+    static let teleprompterKeepScreenAwake = "teleprompterKeepScreenAwake"
+    static let teleprompterShowElapsedTime = "teleprompterShowElapsedTime"
+    static let teleprompterHideFromScreenShare = "teleprompterHideFromScreenShare"
+    static let teleprompterAutoNextPage = "teleprompterAutoNextPage"
+    static let teleprompterOverlayTransparency = "teleprompterOverlayTransparency"
     static let extraBrightnessEnabled = "extraBrightnessEnabled"
     static let extraBrightnessLevel = "extraBrightnessLevel"   // Int percent 0-100
     static let brightnessControlEnabled = "brightnessControlEnabled" // sliders for every display
@@ -1984,6 +1997,34 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutBottomCenterSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutBottomRightSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutFullScreen: WindowLayoutAction.clearedShortcutStorageValue,
+        // Teleprompter
+        DefaultsKey.teleprompterEnabled: true,
+        DefaultsKey.teleprompterGuidanceMode: "wordTracking",
+        DefaultsKey.teleprompterOverlayMode: "notch",
+        DefaultsKey.teleprompterScrollSpeed: 2.5,
+        DefaultsKey.teleprompterFontSize: "sm",
+        DefaultsKey.teleprompterFontFamily: "sans",
+        DefaultsKey.teleprompterHighlightColor: "yellow",
+        DefaultsKey.teleprompterCueColor: "yellow",
+        DefaultsKey.teleprompterCueBrightness: "medium",
+        DefaultsKey.teleprompterWidth: 560.0,
+        DefaultsKey.teleprompterHeight: 280.0,
+        DefaultsKey.teleprompterReadingPosition: "centered",
+        DefaultsKey.teleprompterDisplayTargetMode: "followMouse",
+        DefaultsKey.teleprompterShowParagraphDividers: false,
+        DefaultsKey.teleprompterShowLastSpokenWords: true,
+        DefaultsKey.teleprompterKeepScreenAwake: true,
+        DefaultsKey.teleprompterShowElapsedTime: true,
+        DefaultsKey.teleprompterHideFromScreenShare: true,
+        DefaultsKey.teleprompterAutoNextPage: false,
+        DefaultsKey.teleprompterOverlayTransparency: 0.15,
+        DefaultsKey.teleprompterRemoteServerEnabled: false,
+        DefaultsKey.teleprompterRemoteServerPort: 8765,
+        DefaultsKey.teleprompterDirectorServerEnabled: false,
+        DefaultsKey.teleprompterDirectorServerPort: 8766,
+        DefaultsKey.teleprompterExternalDisplayMode: "off",
+        DefaultsKey.teleprompterExternalDisplayMirrorAxis: "horizontal",
+        DefaultsKey.teleprompterExternalScreenID: 0,
     ]
 
     static func register() {
