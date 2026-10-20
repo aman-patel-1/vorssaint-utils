@@ -60,6 +60,17 @@ struct NotchTeleprompterView: View {
                     .frame(height: 18)
                 }
 
+                // Elapsed time
+                if service.showElapsedTime && service.isRunning {
+                    HStack(spacing: 3) {
+                        Image(systemName: "stopwatch")
+                            .font(.system(size: 9))
+                        Text(service.formattedElapsedTime)
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    }
+                    .foregroundStyle(.white.opacity(0.75))
+                }
+
                 // Page indicator (if multiple pages)
                 if !service.pages.isEmpty {
                     Text("\(service.currentPageIndex + 1)/\(service.pages.count)")
@@ -95,7 +106,7 @@ struct NotchTeleprompterView: View {
                     smoothScroll: service.guidanceMode != .wordTracking,
                     smoothWordProgress: service.timerWordProgress,
                     isListening: service.isRunning && !service.isPaused,
-                    paragraphBreakBeforeWordIndices: paragraphBreakWordIndices(in: service.currentScript)
+                    paragraphBreakBeforeWordIndices: service.showParagraphDividers ? paragraphBreakWordIndices(in: service.currentScript) : []
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, 16)

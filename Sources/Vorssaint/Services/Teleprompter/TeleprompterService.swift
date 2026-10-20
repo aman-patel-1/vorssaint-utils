@@ -5,6 +5,7 @@
 import AppKit
 import Combine
 import Foundation
+import IOKit.pwr_mgt
 import SwiftUI
 
 @MainActor
@@ -59,6 +60,17 @@ final class TeleprompterService: ObservableObject {
     private var words: [String] = []
     private var cancellables = Set<AnyCancellable>()
     private let hotkey = QuickToolHotkey(id: 90)
+    private var sleepAssertionID: IOPMAssertionID = 0
+    private var elapsedTimer: Timer?
+
+    @Published var sessionStartTime: Date? = nil
+    @Published var elapsedSeconds: Int = 0
+
+    var formattedElapsedTime: String {
+        let mins = elapsedSeconds / 60
+        let secs = elapsedSeconds % 60
+        return String(format: "%02d:%02d", mins, secs)
+    }
 
     var currentScript: String {
         get {
@@ -287,7 +299,10 @@ final class TeleprompterService: ObservableObject {
         speechRecognizer.$shouldAdvancePage
             .filter { $0 }
             .sink { [weak self] _ in
-                self?.nextPage()
+                guard let self else { return }
+                if self.autoNextPage {
+                    self.nextPage()
+                }
             }
             .store(in: &cancellables)
 
@@ -401,6 +416,25 @@ final class TeleprompterService: ObservableObject {
         isRunning = true
         isPaused = false
         timerWordProgress = 0
+        sessionStartTime = Date()
+        elapsedSeconds = 0
+
+        elapsedTimer?.invalidate()
+        elapsedTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.isRunning, !self.isPaused else { return }
+                self.elapsedSeconds += 1
+            }
+        }
+
+        if keepScreenAwake {
+            IOPMAssertionCreateWithName(
+                "PreventUserIdleDisplaySleep" as CFString,
+                IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                "Vorssaint Teleprompter Session" as CFString,
+                &sleepAssertionID
+            )
+        }
 
         let script = currentScript
         words = splitTextIntoWords(script)
@@ -486,6 +520,16 @@ final class TeleprompterService: ObservableObject {
         isPaused = false
         autoScrollTimer?.invalidate()
         autoScrollTimer = nil
+        elapsedTimer?.invalidate()
+        elapsedTimer = nil
+        sessionStartTime = nil
+        elapsedSeconds = 0
+
+        if sleepAssertionID != 0 {
+            IOPMAssertionRelease(sleepAssertionID)
+            sleepAssertionID = 0
+        }
+
         speechRecognizer.stop()
         remoteServer.hideContent()
         directorServer.hideContent()
@@ -609,7 +653,7 @@ final class TeleprompterService: ObservableObject {
         speechRecognizer.recognizedCharCount = nextChar
 
         if timerWordProgress >= Double(currentWords.count) {
-            if currentPageIndex < pages.count - 1 {
+            if autoNextPage && currentPageIndex < pages.count - 1 {
                 nextPage()
             } else {
                 stop()

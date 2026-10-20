@@ -54,6 +54,7 @@ final class TeleprompterFloatingWindowController: NSWindowController {
             let y = currentY > 0 ? currentY : frame.midY - h / 2
             panel.setFrame(NSRect(x: x, y: y, width: w, height: h), display: true)
         }
+        panel.sharingType = TeleprompterService.shared.hideFromScreenShare ? .none : .readOnly
         panel.level = .floating
         panel.orderFrontRegardless()
     }
@@ -64,6 +65,7 @@ final class TeleprompterFloatingWindowController: NSWindowController {
         if let frame = targetScreen?.frame {
             panel.setFrame(frame, display: true)
         }
+        panel.sharingType = TeleprompterService.shared.hideFromScreenShare ? .none : .readOnly
         panel.level = .screenSaver
         panel.orderFrontRegardless()
     }
@@ -78,6 +80,7 @@ final class TeleprompterFloatingWindowController: NSWindowController {
             let y = frame.maxY - height - 8
             panel.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
         }
+        panel.sharingType = TeleprompterService.shared.hideFromScreenShare ? .none : .readOnly
         panel.level = .screenSaver
         panel.orderFrontRegardless()
     }
@@ -95,6 +98,7 @@ struct TeleprompterFloatingContentView: View {
         ZStack {
             // Frosted glass background
             VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
+                .opacity(max(0.2, 1.0 - service.overlayTransparency))
                 .cornerRadius(18)
                 .overlay(
                     RoundedRectangle(cornerRadius: 18)
@@ -119,6 +123,19 @@ struct TeleprompterFloatingContentView: View {
                     Text(service.guidanceMode.label)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.white.opacity(0.7))
+
+                    if service.showElapsedTime && service.isRunning {
+                        HStack(spacing: 3) {
+                            Image(systemName: "stopwatch")
+                                .font(.system(size: 9))
+                            Text(service.formattedElapsedTime)
+                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        }
+                        .foregroundStyle(.white.opacity(0.85))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.white.opacity(0.12), in: Capsule())
+                    }
 
                     Spacer()
 
@@ -167,7 +184,7 @@ struct TeleprompterFloatingContentView: View {
                     smoothScroll: service.guidanceMode != .wordTracking,
                     smoothWordProgress: service.timerWordProgress,
                     isListening: service.isRunning && !service.isPaused,
-                    paragraphBreakBeforeWordIndices: paragraphBreakWordIndices(in: service.currentScript)
+                    paragraphBreakBeforeWordIndices: service.showParagraphDividers ? paragraphBreakWordIndices(in: service.currentScript) : []
                 )
                 .padding(.horizontal, 14)
                 .padding(.bottom, 10)
