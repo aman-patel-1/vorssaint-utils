@@ -228,6 +228,7 @@ final class NotchService: ObservableObject {
     private var keepsWorkingSurface: Bool {
         pinned || trackingMenu || NSApp.modalWindow != nil || panel?.attachedSheet != nil
             || NotchLyricsService.shared.isImporting
+            || (expanded && selected == .teleprompter && teleprompterActivityIsRunning)
             // Like the lyrics chooser, these panels stand beside the island
             // instead of hanging from it; a click in them is not a click away.
             || (expanded && MediaWorkspaceView.panelModalActive)
@@ -3879,14 +3880,12 @@ final class NotchService: ObservableObject {
                       self.modules.contains(.teleprompter) else { return }
                 let prompter = TeleprompterService.shared
                 self.teleprompterActivityIsRunning = prompter.isRunning
-                Publishers.CombineLatest3(prompter.$isRunning, prompter.$isPaused, prompter.$elapsedSeconds)
-                    .removeDuplicates { left, right in
-                        left.0 == right.0 && left.1 == right.1 && left.2 == right.2
-                    }
+                prompter.$isRunning
+                    .removeDuplicates()
                     .receive(on: DispatchQueue.main)
-                    .sink { [weak self] state in
+                    .sink { [weak self] isRunning in
                         guard let self else { return }
-                        self.teleprompterActivityIsRunning = state.0
+                        self.teleprompterActivityIsRunning = isRunning
                         self.objectWillChange.send()
                         self.refreshPresentation()
                     }.store(in: &self.subscriptions)

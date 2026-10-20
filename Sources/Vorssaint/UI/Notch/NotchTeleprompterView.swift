@@ -80,15 +80,9 @@ struct NotchTeleprompterView: View {
         VStack(spacing: 8) {
             // Header Bar
             HStack(spacing: 10) {
-                HStack(spacing: 6) {
-                    Image(systemName: AppFeature.teleprompter.symbolName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(service.highlightColor.color)
-
-                    Text("\(pagesList.count) \(pagesList.count == 1 ? "page" : "pages")")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.55))
-                }
+                Text("Script Pages")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.55))
 
                 Spacer()
 
@@ -164,19 +158,20 @@ struct NotchTeleprompterView: View {
 
             // Action Buttons: Edit and Play/Start
             HStack(spacing: 7) {
-                // Edit button (opens PageEditorDialog)
-                Button {
-                    openEditor(for: index)
-                } label: {
-                    Image(systemName: "pencil")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .frame(width: 26, height: 26)
-                        .background(Color.white.opacity(0.12))
-                        .clipShape(Circle())
+                if !service.isRunning {
+                    Button {
+                        openEditor(for: index)
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .frame(width: 26, height: 26)
+                            .background(Color.white.opacity(0.12))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Edit Page \(index + 1)")
                 }
-                .buttonStyle(.plain)
-                .help("Edit Page \(index + 1)")
 
                 // Start / Play button
                 Button {
@@ -216,16 +211,13 @@ struct NotchTeleprompterView: View {
 
     private var activePrompterView: some View {
         VStack(spacing: 8) {
-            // Header: page status and editing tools
+            // Header: page status and navigation
             HStack(spacing: 12) {
                 Spacer()
 
-                // Page indicator
-                if pagesList.count > 1 {
-                    Text("\(service.currentPageIndex + 1)/\(pagesList.count)")
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.7))
-                }
+                Text("Page \(service.currentPageIndex + 1)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.55))
 
                 // Pages List Button (switch to cards studio view)
                 Button {
@@ -241,19 +233,6 @@ struct NotchTeleprompterView: View {
                 .buttonStyle(.plain)
                 .help("View Script Pages")
 
-                // Edit Script Button
-                Button {
-                    openEditor(for: service.currentPageIndex)
-                } label: {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.8))
-                        .frame(width: 24, height: 24)
-                        .background(Color.white.opacity(0.12))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("Edit Page in Full Studio")
             }
             .padding(.horizontal, 16)
             .padding(.top, 4)
@@ -430,20 +409,15 @@ struct NotchTeleprompterView: View {
     /// The elapsed reading takes the page action's top-row position while
     /// running, and follows the user's elapsed-time preference.
     private var elapsedTimeBadge: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "stopwatch")
-                .font(.system(size: 11, weight: .medium))
-            Text(service.formattedElapsedTime)
-                .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                .monospacedDigit()
-        }
-        .foregroundStyle(service.highlightColor.color)
-        .padding(.horizontal, NotchTimerSupport.StartButton.padding)
-        .frame(height: NotchLayout.timerStartHeight)
-        .background(service.highlightColor.color.opacity(0.18), in: Capsule())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(FeatureStrings.notchActivities(l10n.language).stopwatch)
-        .accessibilityValue(service.formattedElapsedTime)
+        Text(service.formattedElapsedTime)
+            .font(.system(size: 11, weight: .medium, design: .monospaced))
+            .monospacedDigit()
+            .foregroundStyle(.white.opacity(0.5))
+            .padding(.horizontal, 6)
+            .frame(height: NotchLayout.timerStartHeight)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(FeatureStrings.notchActivities(l10n.language).stopwatch)
+            .accessibilityValue(service.formattedElapsedTime)
     }
 
     private func previewSnippet(_ text: String) -> String {
