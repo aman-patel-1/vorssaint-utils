@@ -13,6 +13,7 @@ import Speech
 @MainActor
 final class DictationManager: ObservableObject {
     @Published var isRecording: Bool = false
+    @Published var isStarting: Bool = false
     @Published var audioLevels: [CGFloat] = []
     @Published var error: String?
 
@@ -41,11 +42,13 @@ final class DictationManager: ObservableObject {
         let generation = sessionGeneration
         cleanup()
         error = nil
+        isStarting = true
 
         // Check microphone authorization
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .denied, .restricted:
             error = "Microphone access denied. Enable Microphone access in System Settings → Privacy & Security."
+            isStarting = false
             return
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
@@ -56,6 +59,7 @@ final class DictationManager: ObservableObject {
                             self.requestSpeechAuthAndBegin(for: generation)
                         } else {
                             self.error = "Microphone access denied."
+                            self.isStarting = false
                         }
                     }
                 }
@@ -73,6 +77,7 @@ final class DictationManager: ObservableObject {
     func stop() {
         sessionGeneration += 1
         isRecording = false
+        isStarting = false
         cleanup()
     }
 
@@ -118,10 +123,13 @@ final class DictationManager: ObservableObject {
                     case .denied, .restricted:
                         self.error = "Speech recognition access denied. Enable Speech Recognition in System Settings."
                         self.isRecording = false
+                        self.isStarting = false
                     case .notDetermined:
                         self.isRecording = false
+                        self.isStarting = false
                     @unknown default:
                         self.isRecording = false
+                        self.isStarting = false
                     }
                 }
             }
@@ -135,11 +143,13 @@ final class DictationManager: ObservableObject {
 
         guard let recognizer = SFSpeechRecognizer(locale: locale) ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US")) else {
             error = "Speech recognizer unavailable for \(localeId)."
+            isStarting = false
             return
         }
 
         guard recognizer.isAvailable else {
             error = "Speech recognition is temporarily unavailable."
+            isStarting = false
             return
         }
 
@@ -149,6 +159,7 @@ final class DictationManager: ObservableObject {
         let hardwareFormat = inputNode.outputFormat(forBus: 0)
         guard hardwareFormat.sampleRate > 0 else {
             error = "Invalid audio hardware format."
+            isStarting = false
             return
         }
 
@@ -166,9 +177,6 @@ final class DictationManager: ObservableObject {
         recognitionRequest = request
         requestLock.unlock()
 
-        let waveformFrameInterval = AVAudioFrameCount(max(1, captureFormat.sampleRate / 20.0))
-        var framesSinceWaveformUpdate = waveformFrameInterval
-
         inputNode.removeTap(onBus: 0)
         hasInstalledTap = true
         inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: captureFormat) { [weak self, requestLock] buffer, _ in
@@ -178,10 +186,6 @@ final class DictationManager: ObservableObject {
             requestLock.unlock()
             req?.append(buffer)
 
-            framesSinceWaveformUpdate &+= buffer.frameLength
-            guard framesSinceWaveformUpdate >= waveformFrameInterval else { return }
-            framesSinceWaveformUpdate %= waveformFrameInterval
-
             guard let channelData = buffer.floatChannelData?[0] else { return }
             let frameLength = Int(buffer.frameLength)
             var sum: Float = 0
@@ -189,7 +193,9 @@ final class DictationManager: ObservableObject {
                 sum += channelData[i] * channelData[i]
             }
             let rms = sqrt(sum / Float(max(frameLength, 1)))
-            let level = CGFloat(min(Double(rms * 12.0), 1.0))
+            // Lift ordinary speaking levels above the visual noise floor while
+            // retaining a smooth 0...1 range for the editor's live meter.
+            let level = CGFloat(min(max((Double(rms) - 0.003) * 36.0, 0), 1))
 
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
@@ -204,6 +210,7 @@ final class DictationManager: ObservableObject {
             try audioEngine.start()
         } catch {
             self.error = "Failed to start audio engine: \(error.localizedDescription)"
+            isStarting = false
             cleanup()
             return
         }
@@ -232,6 +239,7 @@ final class DictationManager: ObservableObject {
         }
 
         isRecording = true
+        isStarting = false
         watchAudioConfiguration()
     }
 

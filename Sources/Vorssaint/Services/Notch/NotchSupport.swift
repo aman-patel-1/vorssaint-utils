@@ -343,6 +343,8 @@ enum NotchLayout {
     static let musicMinimumExtraHeight: CGFloat = 88
     /// The ruler and its clock read at the player's width.
     static let timerContentWidth: CGFloat = 344
+    static let teleprompterContentWidth: CGFloat = 400
+    static let teleprompterPageListHeight: CGFloat = 156
     static let timerRowSpacing: CGFloat = 8
     /// The Pomodoro's breaks and sessions as one line of readouts under the ruler.
     static let timerSettingsRowHeight: CGFloat = 28
@@ -557,6 +559,7 @@ enum NotchLayout {
         switch module {
         case .music: return musicContentWidth
         case .timer: return timerContentWidth
+        case .teleprompter: return teleprompterContentWidth
         case .controls:
             let shortcuts = controls.filter { !$0.isLevel && $0 != .music }.count
             guard shortcuts <= railCapacity(width: width, itemWidth: shortcutWidth, spacing: shortcutSpacing) else { return nil }
@@ -2789,7 +2792,7 @@ struct NotchGeometry: Equatable {
                 let isRunning = UserDefaults.standard.bool(forKey: DefaultsKey.teleprompterIsRunning)
                 contentHeight = min(budget, isRunning
                                     ? max(compactHeight, runningHeight)
-                                    : compactHeight)
+                                    : max(compactHeight, NotchLayout.teleprompterPageListHeight))
             // Lists and previews fill the chosen content budget.
             case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch:
                 contentHeight = budget

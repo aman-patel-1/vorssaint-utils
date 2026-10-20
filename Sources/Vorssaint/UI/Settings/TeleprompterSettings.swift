@@ -318,7 +318,7 @@ struct TeleprompterSettings: View {
                     Spacer()
 
                     Button {
-                        NotchService.shared.open(.teleprompter, pinned: true)
+                        NotchService.shared.open(.teleprompter)
                         triggerHaptic()
                     } label: {
                         Label("Open Prompter", systemImage: "arrow.up.forward.square")
@@ -1253,7 +1253,26 @@ struct PageEditorDialog: View {
                         .menuStyle(.borderedButton)
                         .controlSize(.small)
 
-                        if dictation.isRecording {
+                        if dictation.isStarting {
+                            HStack(spacing: 6) {
+                                ProgressView()
+                                    .controlSize(.mini)
+                                Text("Starting Dictation…")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                                Button {
+                                    stopDictation()
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Cancel Dictation")
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                        } else if dictation.isRecording {
                             HStack(spacing: 6) {
                                 Circle()
                                     .fill(Color.red)

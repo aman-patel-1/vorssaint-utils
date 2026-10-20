@@ -519,7 +519,7 @@ final class TeleprompterService: ObservableObject {
 
         if overlayMode == .notch {
             if NotchSupport.isEnabled() {
-                NotchService.shared.open(.teleprompter, pinned: true)
+                NotchService.shared.open(.teleprompter)
             } else {
                 TeleprompterFloatingWindowController.shared.showAtNotch()
             }
