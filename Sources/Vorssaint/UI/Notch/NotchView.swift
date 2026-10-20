@@ -10,7 +10,6 @@ struct NotchView: View {
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var updates = UpdateService.shared
-    @ObservedObject private var teleprompter = TeleprompterService.shared
     @ObservedObject private var pageEditor = PageEditorWindowController.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
     @Environment(\.colorSchemeContrast) private var contrast
@@ -502,11 +501,6 @@ struct NotchView: View {
         case .files:
             // One shelf tile and its vertical insets; the actions are in the top row.
             size.height = max(size.height, 88 + 8)
-        case .teleprompter:
-            let compactHeight = NotchLayout.timer(mode: .timer, hasSession: true, height: size.height)
-            size.height = max(size.height, (teleprompter.isRunning || teleprompter.isPreviewingInNotch)
-                              ? max(compactHeight, CGFloat(teleprompter.windowHeight))
-                              : max(compactHeight, NotchLayout.teleprompterPageListHeight))
         default: break
         }
         return size

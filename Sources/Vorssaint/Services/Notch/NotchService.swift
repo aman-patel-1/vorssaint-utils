@@ -887,8 +887,8 @@ final class NotchService: ObservableObject {
         result.pageTop = expandedPageTop
         if selected == .teleprompter, !showingSections, !showingAppPanel,
            selectedMetric == nil, let surfaceSize = teleprompterSurfaceSize {
-            // Window dimensions size the whole island while the live prompter
-            // or its Settings preview is on screen.
+            // Teleprompter dimensions size the whole island while it is
+            // running or shown in its Settings preview.
             result.layout = .custom
             result.customWidth = surfaceSize.width
             result.customHeight = surfaceSize.height

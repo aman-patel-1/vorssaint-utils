@@ -9,6 +9,13 @@ import IOKit.pwr_mgt
 import SwiftUI
 
 @MainActor
+final class TeleprompterPreviewPlayback: ObservableObject {
+    @Published var wordProgress: Double = 0
+    @Published var pageIndex = 0
+    @Published var isSpeaking = false
+}
+
+@MainActor
 final class TeleprompterService: ObservableObject {
     static let shared = TeleprompterService()
     static let scrollSpeedRange = 0.25...3.0
@@ -20,8 +27,7 @@ final class TeleprompterService: ObservableObject {
     }
     /// Shows a sample through the real notch prompter UI without starting a session.
     @Published private(set) var isPreviewingInNotch = false
-    @Published private(set) var previewWordProgress: Double = 0
-    @Published private(set) var previewPageIndex = 0
+    let previewPlayback = TeleprompterPreviewPlayback()
     @Published var isPaused: Bool = false
     @Published var text: String = "Welcome to Vorssaint Teleprompter.\n\nRead your script naturally while on camera. Words highlight in real time as you speak, powered by 100% on-device speech recognition."
     @Published var pages: [String] = []
@@ -106,6 +112,8 @@ final class TeleprompterService: ObservableObject {
     private var elapsedTimer: Timer?
     private var notchPreviewIdleTask: Task<Void, Never>?
     private var previewProgressTimer: Timer?
+    private var previewLastTickTime: TimeInterval?
+    private var previewVoiceCycleTime: TimeInterval = 0
     private var restartSpeechOnResume = false
 
     static let previewPages = [
@@ -114,7 +122,7 @@ final class TeleprompterService: ObservableObject {
         "When the story reaches its final point, pause for a moment before continuing. A steady rhythm makes every sentence easier to follow. [SMILE]"
     ]
     static let previewScript = previewPages.joined(separator: "\n\n")
-    var previewCurrentScript: String { Self.previewPages[previewPageIndex] }
+    var previewCurrentScript: String { Self.previewPages[previewPlayback.pageIndex] }
 
     @Published var sessionStartTime: Date? = nil
     @Published var elapsedSeconds: Int = 0
@@ -521,14 +529,16 @@ final class TeleprompterService: ObservableObject {
         guard !isRunning else { return }
         let isChangingSurface = !isPreviewingInNotch
         if isChangingSurface {
-            previewWordProgress = 0
-            previewPageIndex = 0
+            previewPlayback.wordProgress = 0
+            previewPlayback.pageIndex = 0
+            previewPlayback.isSpeaking = guidanceMode == .wordTracking
+            previewVoiceCycleTime = 0
         }
         isPreviewingInNotch = true
         if isChangingSurface || NotchService.shared.selected != .teleprompter || !NotchService.shared.expanded {
             presentNotchSurface()
         }
-            startPreviewProgressTimerIfNeeded()
+        startPreviewProgressTimerIfNeeded()
 
         notchPreviewIdleTask?.cancel()
         guard let inactivityInterval else { return }
@@ -539,7 +549,8 @@ final class TeleprompterService: ObservableObject {
                 return
             }
             guard let self, self.isPreviewingInNotch, !self.isRunning else { return }
-            self.closeNotchPreview()
+            self.endNotchPreview()
+            NotchService.shared.collapse()
         }
     }
 
@@ -548,6 +559,9 @@ final class TeleprompterService: ObservableObject {
         notchPreviewIdleTask = nil
         previewProgressTimer?.invalidate()
         previewProgressTimer = nil
+        previewLastTickTime = nil
+        previewVoiceCycleTime = 0
+        previewPlayback.isSpeaking = false
         isPreviewingInNotch = false
         NotchService.shared.setTeleprompterSurfaceSize(nil)
     }
@@ -562,26 +576,56 @@ final class TeleprompterService: ObservableObject {
 
     private func startPreviewProgressTimerIfNeeded() {
         guard previewProgressTimer == nil else { return }
-        previewProgressTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+        previewLastTickTime = ProcessInfo.processInfo.systemUptime
+        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.isPreviewingInNotch else { return }
+                let now = ProcessInfo.processInfo.systemUptime
+                let delta = min(0.1, max(0, now - (self.previewLastTickTime ?? now)))
+                self.previewLastTickTime = now
                 let wordCount = max(1, splitTextIntoWords(self.previewCurrentScript).count)
-                let next = self.previewWordProgress + self.scrollSpeed * 0.05
-                self.previewWordProgress = next >= Double(wordCount) ? 0 : next
+                if self.guidanceMode == .voiceActivated {
+                    self.previewVoiceCycleTime += delta
+                    let phase = self.previewVoiceCycleTime.truncatingRemainder(dividingBy: 4.2)
+                    self.previewPlayback.isSpeaking = phase < 3.0
+                    guard self.previewPlayback.isSpeaking else { return }
+                } else {
+                    self.previewPlayback.isSpeaking = self.guidanceMode == .wordTracking
+                }
+                let rate = self.guidanceMode == .wordTracking ? 2.5 : self.scrollSpeed
+                let next = self.previewPlayback.wordProgress + rate * delta
+                if next >= Double(wordCount) {
+                    if self.autoNextPage, self.previewPlayback.pageIndex < Self.previewPages.count - 1 {
+                        self.nextPreviewPage()
+                    } else {
+                        self.previewPlayback.wordProgress = Double(wordCount)
+                        self.previewPlayback.isSpeaking = false
+                    }
+                } else {
+                    self.previewPlayback.wordProgress = next
+                }
             }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        previewProgressTimer = timer
     }
 
     func previousPreviewPage() {
-        guard previewPageIndex > 0 else { return }
-        previewPageIndex -= 1
-        previewWordProgress = 0
+        guard previewPlayback.pageIndex > 0 else { return }
+        previewPlayback.pageIndex -= 1
+        previewPlayback.wordProgress = 0
+        previewVoiceCycleTime = 0
+        previewLastTickTime = ProcessInfo.processInfo.systemUptime
+        previewPlayback.isSpeaking = guidanceMode == .wordTracking
     }
 
     func nextPreviewPage() {
-        guard previewPageIndex < Self.previewPages.count - 1 else { return }
-        previewPageIndex += 1
-        previewWordProgress = 0
+        guard previewPlayback.pageIndex < Self.previewPages.count - 1 else { return }
+        previewPlayback.pageIndex += 1
+        previewPlayback.wordProgress = 0
+        previewVoiceCycleTime = 0
+        previewLastTickTime = ProcessInfo.processInfo.systemUptime
+        previewPlayback.isSpeaking = guidanceMode == .wordTracking
     }
 
     private func updateNotchSurfaceSize() {

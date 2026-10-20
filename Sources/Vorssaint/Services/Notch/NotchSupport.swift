@@ -2787,11 +2787,9 @@ struct NotchGeometry: Equatable {
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             case .teleprompter:
                 let compactHeight = NotchLayout.timer(mode: .timer, hasSession: true, height: budget)
-                let h = UserDefaults.standard.double(forKey: DefaultsKey.teleprompterHeight)
-                let runningHeight = h > 0 ? CGFloat(h) : 180
                 let isRunning = UserDefaults.standard.bool(forKey: DefaultsKey.teleprompterIsRunning)
                 contentHeight = min(budget, isRunning
-                                    ? max(compactHeight, runningHeight)
+                                    ? budget
                                     : max(compactHeight, NotchLayout.teleprompterPageListHeight))
             // Lists and previews fill the chosen content budget.
             case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch:
@@ -2799,10 +2797,10 @@ struct NotchGeometry: Equatable {
             }
         }
         var preferredHeight = headerTopInset + headerChromeHeight + contentHeight
-        if module == .teleprompter && UserDefaults.standard.bool(forKey: DefaultsKey.teleprompterIsRunning) {
-            let h = UserDefaults.standard.double(forKey: DefaultsKey.teleprompterHeight)
-            let runningHeight = h > 0 ? CGFloat(h) : 180
-            preferredHeight = max(preferredHeight, headerTopInset + headerChromeHeight + runningHeight)
+        if module == .teleprompter && layout == .custom {
+            // Teleprompter sizing controls the full outer island, so use its
+            // requested height rather than expanding only the content area.
+            preferredHeight = customHeight
         } else if layout == .custom {
             preferredHeight = min(preferredHeight, customHeight)
         }

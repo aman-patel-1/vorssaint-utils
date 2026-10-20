@@ -93,7 +93,7 @@ struct SpeechScrollView: View {
     }
 
     private var scrollOffsetAnimation: Animation? {
-        smoothScroll ? .linear(duration: 0.06) : .easeOut(duration: 0.45)
+        smoothScroll ? .linear(duration: 1.0 / 60.0) : .easeOut(duration: 0.45)
     }
 
     var body: some View {

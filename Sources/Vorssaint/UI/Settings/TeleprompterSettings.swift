@@ -3,7 +3,6 @@
 // Based on Textream by Fatih Kadir Akın (MIT License)
 
 import AppKit
-import Combine
 import CoreImage.CIFilterBuiltins
 import Speech
 import SwiftUI
@@ -276,6 +275,7 @@ struct TeleprompterSettings: View {
     @State private var importErrorMessage: String? = nil
     @State private var importAlertTitle = "Import Failed"
     @State private var lastPreviewSettings: TeleprompterPreviewSettingsSnapshot?
+    @State private var previewRefreshTask: Task<Void, Never>?
 
     private var strings: TeleprompterStrings {
         FeatureStrings.teleprompter(l10n.language)
@@ -329,31 +329,6 @@ struct TeleprompterSettings: View {
                         .disabled(!teleprompterEnabled)
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Teleprompter Appearance")
-                        .font(.headline)
-
-                    HStack {
-                        Label("Notch", systemImage: "capsule")
-                            .font(.subheadline.weight(.medium))
-                        Spacer()
-                        Button {
-                            if service.isPreviewingInNotch {
-                                service.closeNotchPreview()
-                            } else {
-                                lastPreviewSettings = TeleprompterPreviewSettingsSnapshot(service)
-                                service.previewInNotch(autoCloseAfter: 4)
-                            }
-                        } label: {
-                            Label(service.isPreviewingInNotch ? "Close Preview" : "Preview",
-                                  systemImage: service.isPreviewingInNotch ? "xmark" : "eye")
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .disabled(!teleprompterEnabled || service.isRunning || !NotchSupport.isEnabled())
-                    }
-                }
-                .disabled(!teleprompterEnabled)
             } header: {
                 Text(strings.title)
             }
@@ -377,6 +352,10 @@ struct TeleprompterSettings: View {
                 }
                 .frame(height: min(CGFloat(pagesList.count) * 36, 252))
 
+                Toggle("Auto Next Page", isOn: $service.autoNextPage)
+                    .onChange(of: service.autoNextPage) { _, _ in service.savePreferences() }
+                    .padding(.top, 4)
+
                 HStack(spacing: 10) {
                     Button {
                         addNewPage()
@@ -390,7 +369,22 @@ struct TeleprompterSettings: View {
                         Label("Import .pptx...", systemImage: "doc.badge.plus")
                     }
 
-                    Spacer()
+                    Spacer(minLength: 0)
+
+                    Button {
+                        if service.isPreviewingInNotch {
+                            service.closeNotchPreview()
+                        } else {
+                            lastPreviewSettings = TeleprompterPreviewSettingsSnapshot(service)
+                            service.previewInNotch(autoCloseAfter: 4)
+                        }
+                    } label: {
+                        Label(service.isPreviewingInNotch ? "Close Preview" : "Preview",
+                              systemImage: service.isPreviewingInNotch ? "xmark" : "eye")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!NotchSupport.isEnabled() || service.isRunning)
+                    .help("Preview the teleprompter in the notch.")
 
                     Button {
                         service.openPrompter()
@@ -409,14 +403,9 @@ struct TeleprompterSettings: View {
                 Text("Script Studio & Notes")
             }
             .disabled(!teleprompterEnabled)
-            .simultaneousGesture(TapGesture().onEnded { closeAppearancePreviewIfActive() })
 
             // MARK: - 3. Appearance Section
             Section {
-                Text("Text and cue styling for the notch surface.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
                 Picker("Font Family", selection: $service.fontFamily) {
                     ForEach(TeleprompterFontFamilyPreset.allCases) { family in
                         Text(family.label).tag(family)
@@ -478,9 +467,10 @@ struct TeleprompterSettings: View {
                     Text("Notch Width")
                         .frame(width: 110, alignment: .leading)
                     Slider(value: $service.windowWidth,
-                           in: TeleprompterService.notchWindowWidthRange, step: 20)
+                           in: TeleprompterService.notchWindowWidthRange, step: 20, onEditingChanged: { editing in
+                        if !editing { service.savePreferences() }
+                    })
                         .help("\(Int(TeleprompterService.notchWindowWidthRange.lowerBound))–\(Int(TeleprompterService.notchWindowWidthRange.upperBound)) points.")
-                        .onChange(of: service.windowWidth) { _, _ in service.savePreferences() }
                     Text("\(Int(service.windowWidth)) pt")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(.secondary)
@@ -491,9 +481,10 @@ struct TeleprompterSettings: View {
                     Text("Notch Height")
                         .frame(width: 110, alignment: .leading)
                     Slider(value: $service.windowHeight,
-                           in: TeleprompterService.notchWindowHeightRange, step: 20)
+                           in: TeleprompterService.notchWindowHeightRange, step: 20, onEditingChanged: { editing in
+                        if !editing { service.savePreferences() }
+                    })
                         .help("\(Int(TeleprompterService.notchWindowHeightRange.lowerBound))–\(Int(TeleprompterService.notchWindowHeightRange.upperBound)) points.")
-                        .onChange(of: service.windowHeight) { _, _ in service.savePreferences() }
                     Text("\(Int(service.windowHeight)) pt")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(.secondary)
@@ -508,10 +499,6 @@ struct TeleprompterSettings: View {
 
             // MARK: - 4. Guidance Section
             Section {
-                Text("Speech tracking and scroll behavior for the notch surface.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
                 HStack {
                     HStack(spacing: 4) {
                         Text("Tracking Mode")
@@ -534,11 +521,13 @@ struct TeleprompterSettings: View {
                     HStack(spacing: 12) {
                         Text("Scroll Speed")
                             .frame(width: 110, alignment: .leading)
-                        Slider(value: $service.scrollSpeed, in: TeleprompterService.scrollSpeedRange, step: 0.05)
-                            .onChange(of: service.scrollSpeed) { _, _ in
+                        Slider(value: $service.scrollSpeed, in: TeleprompterService.scrollSpeedRange, step: 0.05,
+                               onEditingChanged: { editing in
+                            if !editing {
                                 triggerHaptic()
                                 service.savePreferences()
                             }
+                        })
                         Text(String(format: "%.1fx", service.scrollSpeed))
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(.secondary)
@@ -569,9 +558,6 @@ struct TeleprompterSettings: View {
 
             // MARK: - 5. Controls Section
             Section {
-                Toggle("Auto Next Page", isOn: $service.autoNextPage)
-                    .onChange(of: service.autoNextPage) { _, _ in service.savePreferences() }
-
                 Toggle("Show paragraph dividers", isOn: $service.showParagraphDividers)
                     .onChange(of: service.showParagraphDividers) { _, _ in service.savePreferences() }
 
@@ -744,14 +730,24 @@ struct TeleprompterSettings: View {
             openRequestedEditPageIfNeeded()
         }
         .onDisappear {
+            previewRefreshTask?.cancel()
+            previewRefreshTask = nil
             closeAppearancePreviewIfActive()
         }
-        .onReceive(service.objectWillChange.debounce(for: .milliseconds(80), scheduler: RunLoop.main)) { _ in
-            let snapshot = TeleprompterPreviewSettingsSnapshot(service)
+        .onChange(of: TeleprompterPreviewSettingsSnapshot(service)) { _, snapshot in
             guard snapshot != lastPreviewSettings else { return }
             lastPreviewSettings = snapshot
-            guard !service.isRunning else { return }
-            service.previewInNotch(autoCloseAfter: 4)
+            guard !service.isRunning, NotchSupport.isEnabled() else { return }
+            previewRefreshTask?.cancel()
+            previewRefreshTask = Task { @MainActor in
+                do {
+                    try await Task.sleep(nanoseconds: 80_000_000)
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled, !service.isRunning else { return }
+                service.previewInNotch(autoCloseAfter: 4)
+            }
         }
         .onChange(of: service.pendingAddPageInSettings) { _, requested in
             if requested { openRequestedNewPageIfNeeded() }

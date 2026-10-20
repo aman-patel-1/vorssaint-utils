@@ -7,19 +7,20 @@ import SwiftUI
 struct NotchTeleprompterView: View {
     @ObservedObject private var service = TeleprompterService.shared
     @ObservedObject private var recognizer = TeleprompterService.shared.speechRecognizer
+    @ObservedObject private var previewPlayback = TeleprompterService.shared.previewPlayback
     @ObservedObject private var l10n = L10n.shared
     var size: CGSize
 
     @State private var showingPageCards: Bool = false
     @State private var dragStartHeight: Double = -1
 
-    private var previewScript: String { service.previewCurrentScript }
+    private var previewScript: String { TeleprompterService.previewPages[previewPlayback.pageIndex] }
 
     private var showsPrompterSurface: Bool { service.isRunning || service.isPreviewingInNotch }
     private var displayedWords: [String] {
         service.isPreviewingInNotch && !service.isRunning ? splitTextIntoWords(previewScript) : service.currentWords
     }
-    private var previewWordProgress: Double { service.previewWordProgress }
+    private var previewWordProgress: Double { previewPlayback.wordProgress }
     private var previewCharCount: Int {
         let wordCount = min(displayedWords.count, max(0, Int(previewWordProgress)))
         return displayedWords.prefix(wordCount).joined(separator: " ").count
@@ -304,7 +305,7 @@ struct NotchTeleprompterView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(service.isPreviewingInNotch && !service.isRunning
-                              ? service.previewPageIndex == 0 : service.currentPageIndex == 0)
+                              ? previewPlayback.pageIndex == 0 : service.currentPageIndex == 0)
 
                     Button {
                         if service.isPreviewingInNotch && !service.isRunning {
@@ -318,7 +319,7 @@ struct NotchTeleprompterView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(service.isPreviewingInNotch && !service.isRunning
-                              ? service.previewPageIndex >= TeleprompterService.previewPages.count - 1
+                              ? previewPlayback.pageIndex >= TeleprompterService.previewPages.count - 1
                               : service.currentPageIndex >= pagesList.count - 1)
                 }
 
@@ -384,9 +385,11 @@ struct NotchTeleprompterView: View {
     }
 
     private var liveWaveform: some View {
-        TeleprompterWaveformView(levels: recognizer.audioLevels,
+        let previewIsActive = service.isPreviewingInNotch && !service.isRunning
+            && previewPlayback.isSpeaking
+        TeleprompterWaveformView(levels: previewIsActive ? [] : recognizer.audioLevels,
                                  color: service.highlightColor.color,
-                                 isActive: recognizer.isStarting || recognizer.isListening)
+                                 isActive: previewIsActive || recognizer.isStarting || recognizer.isListening)
             .frame(width: 58, height: 18)
             .accessibilityLabel(FeatureStrings.teleprompter(l10n.language).listening)
     }
