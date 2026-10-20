@@ -62,6 +62,7 @@ final class SpeechRecognizer: ObservableObject {
     private var recentMatchPositions: [Int] = []
     private var spokenAnchorPrefix: String = ""
     private var lastJumpAt: Date = .distantPast
+    private var useOnDeviceRecognition: Bool = true
 
     func updateText(_ text: String, preservingCharCount: Int) {
         let words = splitTextIntoWords(text)
@@ -341,6 +342,12 @@ final class SpeechRecognizer: ObservableObject {
             }
             recognitionRequest.shouldReportPartialResults = true
             recognitionRequest.taskHint = .dictation
+            if #available(macOS 13, *) {
+                recognitionRequest.addsPunctuation = false
+            }
+            if useOnDeviceRecognition && speechRecognizer.supportsOnDeviceRecognition {
+                recognitionRequest.requiresOnDeviceRecognition = true
+            }
 
             let upcoming = String(sourceText.dropFirst(matchStartOffset))
             let contextWords = upcoming.split(separator: " ")
@@ -544,6 +551,12 @@ final class SpeechRecognizer: ObservableObject {
         let newRequest = SFSpeechAudioBufferRecognitionRequest()
         newRequest.shouldReportPartialResults = true
         newRequest.taskHint = .dictation
+        if #available(macOS 13, *) {
+            newRequest.addsPunctuation = false
+        }
+        if useOnDeviceRecognition && speechRecognizer?.supportsOnDeviceRecognition == true {
+            newRequest.requiresOnDeviceRecognition = true
+        }
 
         let upcoming = String(sourceText.dropFirst(matchStartOffset))
         let contextWords = upcoming.split(separator: " ")
@@ -715,8 +728,15 @@ final class SpeechRecognizer: ObservableObject {
                 continue
             }
 
+            // Skip non-alphanumeric in source
             if !sc.isLetter && !sc.isNumber {
                 si += 1
+                continue
+            }
+
+            // Skip non-alphanumeric in spoken
+            if !rc.isLetter && !rc.isNumber {
+                ri += 1
                 continue
             }
 
@@ -726,14 +746,12 @@ final class SpeechRecognizer: ObservableObject {
                 lastGoodOrigIndex = si
             } else {
                 var found = false
-                let maxSkipR = min(3, spk.count - ri - 1)
+                let maxSkipR = min(5, spk.count - ri - 1)
                 if maxSkipR >= 1 {
                     for skipR in 1...maxSkipR {
                         let nextRI = ri + skipR
                         if nextRI < spk.count && spk[nextRI] == sc {
-                            ri = nextRI + 1
-                            si += 1
-                            lastGoodOrigIndex = si
+                            ri = nextRI
                             found = true
                             break
                         }

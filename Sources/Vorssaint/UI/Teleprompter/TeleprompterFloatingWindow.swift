@@ -124,6 +124,7 @@ struct TeleprompterFloatingContentView: View {
                         service.jumpTo(charOffset: offset)
                     },
                     smoothScroll: service.guidanceMode != .wordTracking,
+                    smoothWordProgress: service.timerWordProgress,
                     isListening: service.isRunning && !service.isPaused,
                     paragraphBreakBeforeWordIndices: paragraphBreakWordIndices(in: service.currentScript)
                 )

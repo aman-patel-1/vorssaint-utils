@@ -75,8 +75,17 @@ struct SpeechScrollView: View {
     var paragraphBreakBeforeWordIndices: Set<Int> = []
 
     @State private var scrollOffset: CGFloat = 0
+    @State private var manualOffset: CGFloat = 0
     @State private var wordYPositions: [Int: CGFloat] = [:]
     @State private var containerHeight: CGFloat = 0
+    @State private var allowsNextBackwardTrackingUpdate = false
+    @State private var hasAppliedTrackingTarget = false
+    @State private var anchoredLayoutWidth: CGFloat = 0
+    @State private var anchoredParagraphBreakBeforeWordIndices: Set<Int> = []
+
+    private var scrollOffsetAnimation: Animation? {
+        smoothScroll ? .linear(duration: 0.06) : .easeOut(duration: 0.45)
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -92,47 +101,79 @@ struct SpeechScrollView: View {
                 paragraphBreakBeforeWordIndices: paragraphBreakBeforeWordIndices,
                 containerWidth: geo.size.width,
                 viewportHeight: geo.size.height,
-                scrollOffset: scrollOffset,
-                onWordTap: onWordTap
+                scrollOffset: scrollOffset + manualOffset,
+                onWordTap: { charOffset in
+                    let tappedWordIndex = wordIndex(at: charOffset)
+                    manualOffset = 0
+                    if charOffset < highlightedCharCount {
+                        allowsNextBackwardTrackingUpdate = true
+                    }
+                    onWordTap?(charOffset)
+                    repositionTracking(toWordIndex: tappedWordIndex)
+                }
             )
-            .coordinateSpace(name: "WordFlowLayout")
             .onPreferenceChange(WordYPreferenceKey.self) { positions in
+                let wasEmpty = wordYPositions.isEmpty
+                let widthChanged = abs(anchoredLayoutWidth - geo.size.width) > 0.5
+                let paragraphLayoutChanged = anchoredParagraphBreakBeforeWordIndices != paragraphBreakBeforeWordIndices
+                if widthChanged || paragraphLayoutChanged {
+                    hasAppliedTrackingTarget = false
+                }
                 wordYPositions = positions
-                recalculateTracking(containerHeight: containerHeight)
+                if (wasEmpty || widthChanged || paragraphLayoutChanged), !positions.isEmpty {
+                    anchoredLayoutWidth = geo.size.width
+                    anchoredParagraphBreakBeforeWordIndices = paragraphBreakBeforeWordIndices
+                    recalculateTracking(containerHeight: containerHeight)
+                }
             }
-            .offset(y: scrollOffset)
-            .animation(smoothScroll ? .linear(duration: 0.08) : .easeOut(duration: 0.35), value: scrollOffset)
+            .offset(y: scrollOffset + manualOffset)
+            .animation(scrollOffsetAnimation, value: scrollOffset)
+            .animation(.easeOut(duration: 0.15), value: manualOffset)
             .onChange(of: geo.size.height) { _, newHeight in
                 containerHeight = newHeight
-                recalculateTracking(containerHeight: newHeight)
+                hasAppliedTrackingTarget = false
+                if highlightedCharCount == 0 && smoothWordProgress == 0 {
+                    let lineHeight = font.pointSize * 1.4
+                    scrollOffset = newHeight * 0.5 - lineHeight * 0.5
+                } else if isListening {
+                    recalculateTracking(containerHeight: newHeight)
+                }
             }
-            .onChange(of: highlightedCharCount) {
-                if !smoothScroll {
+            .onChange(of: highlightedCharCount) { _, _ in
+                if isListening && !smoothScroll {
+                    manualOffset = 0
                     recalculateTracking(containerHeight: containerHeight)
                 }
             }
-            .onChange(of: smoothWordProgress) {
-                if smoothScroll {
+            .onChange(of: smoothWordProgress) { _, _ in
+                if isListening && smoothScroll {
+                    manualOffset = 0
                     recalculateTracking(containerHeight: containerHeight)
                 }
+            }
+            .onChange(of: isListening) { _, listening in
+                if listening {
+                    manualOffset = 0
+                    recalculateTracking(containerHeight: containerHeight)
+                }
+            }
+            .onChange(of: words) { _, _ in
+                let lineHeight = font.pointSize * 1.4
+                scrollOffset = containerHeight * 0.5 - lineHeight * 0.5
+                manualOffset = 0
+                wordYPositions = [:]
+                allowsNextBackwardTrackingUpdate = false
+                hasAppliedTrackingTarget = false
+                anchoredLayoutWidth = 0
+                anchoredParagraphBreakBeforeWordIndices = []
             }
             .onAppear {
                 containerHeight = geo.size.height
-                recalculateTracking(containerHeight: geo.size.height)
+                let lineHeight = font.pointSize * 1.4
+                scrollOffset = containerHeight * 0.5 - lineHeight * 0.5
             }
         }
         .clipped()
-    }
-
-    private func activeWordIndex() -> Int {
-        var cumulative = 0
-        for (i, w) in words.enumerated() {
-            cumulative += w.count + 1
-            if cumulative > highlightedCharCount {
-                return i
-            }
-        }
-        return max(0, words.count - 1)
     }
 
     private func recalculateTracking(containerHeight: CGFloat) {
@@ -140,19 +181,60 @@ struct SpeechScrollView: View {
         let center = containerHeight * 0.45
 
         if smoothScroll {
+            let bottomAnchor = containerHeight - 24
             let wordIdx = Int(smoothWordProgress)
             let fraction = smoothWordProgress - Double(wordIdx)
-            let clamped = max(0, min(wordIdx, words.count - 1))
-            guard let wordY = wordYPositions[clamped] else { return }
-            let nextY = wordYPositions[clamped + 1] ?? wordY
-            let interp = wordY + (nextY - wordY) * CGFloat(fraction)
-            scrollOffset = center - interp
+            let clampedIdx = max(0, min(wordIdx, words.count - 1))
+            guard let wordY = wordYPositions[clampedIdx] else { return }
+            let nextY = wordYPositions[clampedIdx + 1] ?? wordY
+            let interpolatedY = wordY + (nextY - wordY) * CGFloat(fraction)
+            applyTrackingTarget(bottomAnchor - interpolatedY)
         } else {
             let wordIdx = activeWordIndex()
             if let wordY = wordYPositions[wordIdx] {
-                scrollOffset = center - wordY
+                applyTrackingTarget(center - wordY)
             }
         }
+    }
+
+    private func repositionTracking(toWordIndex wordIndex: Int) {
+        guard let wordY = wordYPositions[wordIndex] else { return }
+        let center = containerHeight * 0.45
+        applyTrackingTarget(center - wordY, force: true)
+    }
+
+    /// Normal reading progress may only move the text upward. Brief backward
+    /// corrections from speech recognition must not produce a down/up bounce.
+    /// Explicit taps and manual scrolling opt into one backward reposition.
+    private func applyTrackingTarget(_ target: CGFloat, force: Bool = false) {
+        if !hasAppliedTrackingTarget
+            || target < scrollOffset - 1
+            || allowsNextBackwardTrackingUpdate
+            || force {
+            scrollOffset = target
+        }
+        hasAppliedTrackingTarget = true
+        allowsNextBackwardTrackingUpdate = false
+    }
+
+    private func wordIndex(at charOffset: Int) -> Int {
+        var offset = 0
+        for (index, word) in words.enumerated() {
+            let end = offset + word.count
+            if charOffset <= end { return index }
+            offset = end + 1
+        }
+        return max(0, words.count - 1)
+    }
+
+    private func activeWordIndex() -> Int {
+        var offset = 0
+        for (i, word) in words.enumerated() {
+            let end = offset + word.count
+            if highlightedCharCount <= end { return i }
+            offset = end + 1
+        }
+        return max(0, words.count - 1)
     }
 }
 
@@ -173,7 +255,42 @@ struct WordFlowLayout: View {
     var scrollOffset: CGFloat
     var onWordTap: ((Int) -> Void)?
 
-    private let lineSpacing: CGFloat = 8
+    private var lineSpacing: CGFloat {
+        let intrinsicHeight = font.ascender - font.descender + font.leading
+        let ratio = intrinsicHeight / font.pointSize
+        return ratio > 1.5 ? 2 : 8
+    }
+
+    private static var _cacheKey: String = ""
+    private static var _cachedItems: [WordItem] = []
+    private static var _cachedLines: [[WordItem]] = []
+
+    private func cachedLayout() -> ([WordItem], [[WordItem]]) {
+        let paragraphKey = paragraphBreakBeforeWordIndices.sorted().map(String.init).joined(separator: ",")
+        let key = "\(words.count)|\(words.first ?? "")|\(words.last ?? "")|\(font.fontName)|\(font.pointSize)|\(Int(containerWidth))|\(paragraphKey)"
+        if key == Self._cacheKey {
+            return (Self._cachedItems, Self._cachedLines)
+        }
+        let items = buildItems()
+        let lines = buildLines(items: items)
+        Self._cacheKey = key
+        Self._cachedItems = items
+        Self._cachedLines = lines
+        return (items, lines)
+    }
+
+    private func nextWordIndex(items: [WordItem]) -> Int {
+        for item in items {
+            if item.isAnnotation { continue }
+            let charsIntoWord = highlightedCharCount - item.charOffset
+            let litCount = max(0, min(item.word.count, charsIntoWord))
+            let letterCount = max(1, item.word.filter { $0.isLetter || $0.isNumber }.count)
+            if litCount < letterCount {
+                return item.id
+            }
+        }
+        return -1
+    }
 
     private func buildItems() -> [WordItem] {
         var items: [WordItem] = []
@@ -230,8 +347,8 @@ struct WordFlowLayout: View {
     }
 
     var body: some View {
-        let items = buildItems()
-        let lines = buildLines(items: items)
+        let (items, lines) = cachedLayout()
+        let nextIdx = nextWordIndex(items: items)
 
         VStack(alignment: .leading, spacing: lineSpacing) {
             ForEach(lines.indices, id: \.self) { lineIdx in
@@ -240,41 +357,88 @@ struct WordFlowLayout: View {
 
                 HStack(spacing: 0) {
                     ForEach(line) { item in
-                        wordView(for: item)
-                            .background(
-                                GeometryReader { wordGeo in
-                                    Color.clear.preference(
-                                        key: WordYPreferenceKey.self,
-                                        value: [item.id: wordGeo.frame(in: .named("WordFlowLayout")).midY]
-                                    )
-                                }
-                            )
+                        wordView(for: item, isNextWord: item.id == nextIdx)
                     }
                 }
                 .padding(.top, beginsParagraph ? paragraphDividerExtraSpacing : 0)
             }
         }
         .frame(width: containerWidth, alignment: .leading)
+        .coordinateSpace(name: "flowLayout")
     }
 
     @ViewBuilder
-    private func wordView(for item: WordItem) -> some View {
+    private func wordView(for item: WordItem, isNextWord: Bool) -> some View {
+        let wordLen = item.word.count
         let charsIntoWord = highlightedCharCount - item.charOffset
-        let isRead = charsIntoWord >= item.word.count
-        let isReading = !isRead && charsIntoWord > 0
+        let litCount = max(0, min(wordLen, charsIntoWord))
+        let letterCount = max(1, item.word.filter { $0.isLetter || $0.isNumber }.count)
+        let isFullyLit = litCount >= letterCount
+        let isCurrentWord = isNextWord || (charsIntoWord >= 0 && !isFullyLit)
 
-        Button {
-            onWordTap?(item.charOffset)
-        } label: {
+        if !highlightWords {
+            let uniformColor: Color = item.isAnnotation
+                ? cueColor.opacity(cueUnreadOpacity)
+                : highlightColor
+
+            Text(item.word + " ")
+                .font(item.isAnnotation ? Font(font).italic() : Font(font))
+                .foregroundStyle(uniformColor)
+                .background(
+                    GeometryReader { wordGeo in
+                        Color.clear.preference(
+                            key: WordYPreferenceKey.self,
+                            value: [item.id: wordGeo.frame(in: .named("flowLayout")).midY]
+                        )
+                    }
+                )
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    onWordTap?(item.charOffset)
+                }
+        } else if item.isAnnotation {
+            let annotationColor: Color = isFullyLit
+                ? cueColor.opacity(cueReadOpacity)
+                : cueColor.opacity(cueUnreadOpacity)
+
+            Text(item.word + " ")
+                .font(Font(font).italic())
+                .foregroundStyle(annotationColor)
+                .background(
+                    GeometryReader { wordGeo in
+                        Color.clear.preference(
+                            key: WordYPreferenceKey.self,
+                            value: [item.id: wordGeo.frame(in: .named("flowLayout")).midY]
+                        )
+                    }
+                )
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    onWordTap?(item.charOffset)
+                }
+        } else {
+            let dimColor: Color = isCurrentWord
+                ? highlightColor.opacity(0.85)
+                : highlightColor.opacity(0.35)
+
+            let wordColor: Color = isFullyLit ? highlightColor.opacity(0.4) : dimColor
+
             Text(item.word + " ")
                 .font(Font(font))
-                .italic(item.isAnnotation)
-                .foregroundStyle(
-                    item.isAnnotation
-                        ? cueColor.opacity(isRead ? cueReadOpacity : cueUnreadOpacity)
-                        : (isRead || isReading) ? highlightColor : Color.white.opacity(0.3)
+                .foregroundStyle(isCurrentWord ? highlightColor : wordColor)
+                .underline(isCurrentWord, color: highlightColor)
+                .background(
+                    GeometryReader { wordGeo in
+                        Color.clear.preference(
+                            key: WordYPreferenceKey.self,
+                            value: [item.id: wordGeo.frame(in: .named("flowLayout")).midY]
+                        )
+                    }
                 )
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    onWordTap?(item.charOffset)
+                }
         }
-        .buttonStyle(.plain)
     }
 }

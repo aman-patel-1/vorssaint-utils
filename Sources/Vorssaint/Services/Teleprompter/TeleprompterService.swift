@@ -28,6 +28,7 @@ final class TeleprompterService: ObservableObject {
     @Published var selectedMicUID: String = ""
     @Published var remoteServerEnabled: Bool = false
     @Published var floatingWindowVisible: Bool = false
+    @Published var timerWordProgress: Double = 0
 
     // Director and External Display
     @Published var directorServerEnabled: Bool = false
@@ -297,6 +298,7 @@ final class TeleprompterService: ObservableObject {
         guard !isRunning else { return }
         isRunning = true
         isPaused = false
+        timerWordProgress = 0
 
         let script = currentScript
         words = splitTextIntoWords(script)
@@ -393,6 +395,7 @@ final class TeleprompterService: ObservableObject {
 
     func jumpTo(charOffset: Int) {
         speechRecognizer.jumpTo(charOffset: charOffset)
+        timerWordProgress = wordProgressForCharOffset(charOffset)
     }
 
     func nextPage() {
@@ -402,18 +405,21 @@ final class TeleprompterService: ObservableObject {
             return
         }
         currentPageIndex += 1
+        timerWordProgress = 0
         restartCurrentPage()
     }
 
     func previousPage() {
         guard !pages.isEmpty, currentPageIndex > 0 else { return }
         currentPageIndex -= 1
+        timerWordProgress = 0
         restartCurrentPage()
     }
 
     private func restartCurrentPage() {
         let script = currentScript
         words = splitTextIntoWords(script)
+        timerWordProgress = 0
         speechRecognizer.start(with: script)
 
         let hasNext = currentPageIndex < pages.count - 1
@@ -443,11 +449,41 @@ final class TeleprompterService: ObservableObject {
         }
     }
 
+    // MARK: - Word Progress & Auto Scroll Helpers
+
+    func charOffsetForWordProgress(_ progress: Double) -> Int {
+        let wholeWord = Int(progress)
+        let frac = progress - Double(wholeWord)
+        var offset = 0
+        let w = currentWords
+        for i in 0..<min(wholeWord, w.count) {
+            offset += w[i].count + 1
+        }
+        if wholeWord < w.count {
+            offset += Int(Double(w[wholeWord].count) * frac)
+        }
+        return min(offset, currentScript.count)
+    }
+
+    func wordProgressForCharOffset(_ charOffset: Int) -> Double {
+        var offset = 0
+        let w = currentWords
+        for (i, word) in w.enumerated() {
+            let end = offset + word.count
+            if charOffset <= end {
+                let frac = Double(charOffset - offset) / Double(max(1, word.count))
+                return Double(i) + frac
+            }
+            offset = end + 1
+        }
+        return Double(w.count)
+    }
+
     // MARK: - Auto Scroll for Classic and Voice-Activated Modes
 
     private func startAutoScrollTimer() {
         autoScrollTimer?.invalidate()
-        autoScrollTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        autoScrollTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.isRunning, !self.isPaused else { return }
                 self.tickAutoScroll()
@@ -456,19 +492,18 @@ final class TeleprompterService: ObservableObject {
     }
 
     private func tickAutoScroll() {
-        let total = currentScript.count
-        guard total > 0 else { return }
+        guard !currentWords.isEmpty else { return }
 
         if guidanceMode == .voiceActivated {
             guard speechRecognizer.isSpeaking else { return }
         }
 
-        // scrollSpeed is in words/sec. In 0.1 sec, we advance (scrollSpeed * 0.1) words.
-        let advanceCharRate = max(1.0, (Double(total) / Double(max(1, totalWordCount))) * (scrollSpeed * 0.1))
-        let nextChar = min(total, speechRecognizer.recognizedCharCount + Int(advanceCharRate))
+        let speed = scrollSpeed // words per second
+        timerWordProgress += speed * 0.05
+        let nextChar = charOffsetForWordProgress(timerWordProgress)
         speechRecognizer.recognizedCharCount = nextChar
 
-        if nextChar >= total {
+        if timerWordProgress >= Double(currentWords.count) {
             if currentPageIndex < pages.count - 1 {
                 nextPage()
             } else {

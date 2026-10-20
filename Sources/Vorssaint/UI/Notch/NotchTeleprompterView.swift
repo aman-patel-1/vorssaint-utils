@@ -93,6 +93,7 @@ struct NotchTeleprompterView: View {
                         service.jumpTo(charOffset: charOffset)
                     },
                     smoothScroll: service.guidanceMode != .wordTracking,
+                    smoothWordProgress: service.timerWordProgress,
                     isListening: service.isRunning && !service.isPaused,
                     paragraphBreakBeforeWordIndices: paragraphBreakWordIndices(in: service.currentScript)
                 )
