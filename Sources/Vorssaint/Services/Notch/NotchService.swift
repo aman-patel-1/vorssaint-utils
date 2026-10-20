@@ -177,6 +177,8 @@ final class NotchService: ObservableObject {
     private var shelfDragExitWork: DispatchWorkItem?
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var subscriptions = Set<AnyCancellable>()
+    private var teleprompterActivityIsRunning = false
+    private var teleprompterSubscriptionGeneration: UInt64 = 0
     private var eventMonitors: [Any] = []
     private var screenEdgeClickMonitors: [Any] = []
     private var screenEdgePressArea: CGRect?
@@ -510,7 +512,7 @@ final class NotchService: ObservableObject {
     }
 
     var hasTeleprompterActivity: Bool {
-        modules.contains(.teleprompter) && TeleprompterService.shared.isRunning
+        modules.contains(.teleprompter) && teleprompterActivityIsRunning
     }
 
     var compactActivity: NotchCompactActivity? {
@@ -3856,6 +3858,9 @@ final class NotchService: ObservableObject {
 
     private func bindEvents() {
         subscriptions.removeAll()
+        teleprompterSubscriptionGeneration &+= 1
+        let teleprompterGeneration = teleprompterSubscriptionGeneration
+        teleprompterActivityIsRunning = false
         if modules.contains(.timer) {
             NotchTimerService.shared.$session.removeDuplicates().receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
@@ -3865,16 +3870,27 @@ final class NotchService: ObservableObject {
                 }.store(in: &subscriptions)
         }
         if modules.contains(.teleprompter) {
-            let prompter = TeleprompterService.shared
-            Publishers.CombineLatest3(prompter.$isRunning, prompter.$isPaused, prompter.$elapsedSeconds)
-                .removeDuplicates { left, right in
-                    left.0 == right.0 && left.1 == right.1 && left.2 == right.2
-                }
-                .receive(on: DispatchQueue.main)
-                .sink { [weak self] _ in
-                    self?.objectWillChange.send()
-                    self?.refreshPresentation()
-                }.store(in: &subscriptions)
+            // The prompter service is MainActor isolated. Defer access to its
+            // publisher until on that actor, while keeping the strip's cached
+            // activity state safe to read from Notch layout calculations.
+            Task { @MainActor [weak self] in
+                guard let self,
+                      self.teleprompterSubscriptionGeneration == teleprompterGeneration,
+                      self.modules.contains(.teleprompter) else { return }
+                let prompter = TeleprompterService.shared
+                self.teleprompterActivityIsRunning = prompter.isRunning
+                Publishers.CombineLatest3(prompter.$isRunning, prompter.$isPaused, prompter.$elapsedSeconds)
+                    .removeDuplicates { left, right in
+                        left.0 == right.0 && left.1 == right.1 && left.2 == right.2
+                    }
+                    .receive(on: DispatchQueue.main)
+                    .sink { [weak self] state in
+                        guard let self else { return }
+                        self.teleprompterActivityIsRunning = state.0
+                        self.objectWillChange.send()
+                        self.refreshPresentation()
+                    }.store(in: &self.subscriptions)
+            }
         }
         if modules.contains(.watch) {
             // The strip resizes with its reading, and when the area turns
