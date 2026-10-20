@@ -417,13 +417,14 @@ final class SpeechRecognizer: ObservableObject {
                 sum += channelData[i] * channelData[i]
             }
             let rms = sqrt(sum / Float(max(frameLength, 1)))
-            let level = CGFloat(min(rms * 5, 1.0))
+            let activityLevel = CGFloat(min(rms * 5, 1.0))
+            let waveformLevel = CGFloat(min(max((Double(rms) - 0.003) * 36.0, 0), 1))
 
             DispatchQueue.main.async {
                 guard let self,
                       self.shouldListen,
                       self.sessionGeneration == expectedSessionGeneration else { return }
-                self.recordAudioLevel(level)
+                self.recordAudioLevel(waveformLevel, activityLevel: activityLevel)
             }
         }
 
@@ -515,12 +516,12 @@ final class SpeechRecognizer: ObservableObject {
         scheduleBeginRecognition(after: 0.5)
     }
 
-    private func recordAudioLevel(_ level: CGFloat) {
+    private func recordAudioLevel(_ level: CGFloat, activityLevel: CGFloat) {
         audioLevels.append(level)
         if audioLevels.count > 30 {
             audioLevels.removeFirst()
         }
-        voiceActivityDetector.process(level: level, at: ProcessInfo.processInfo.systemUptime)
+        voiceActivityDetector.process(level: activityLevel, at: ProcessInfo.processInfo.systemUptime)
     }
 
     private func appendBufferToRequest(_ buffer: AVAudioPCMBuffer) {

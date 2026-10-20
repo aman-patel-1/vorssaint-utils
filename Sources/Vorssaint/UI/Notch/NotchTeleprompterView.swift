@@ -33,10 +33,12 @@ struct NotchTeleprompterView: View {
         .notchBand(leading: {
             HStack(spacing: 7) {
                 NotchIconButton(symbol: "arrow.uturn.backward", title: l10n.s.obBack, action: NotchService.shared.toggleSections)
-                Text("Script Pages")
+                Text(service.isRunning ? String(format: "%.1fx", service.scrollSpeed) : "Script Pages")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.65))
                     .lineLimit(1)
+                    .accessibilityLabel(service.isRunning ? "Scroll speed" : "Script Pages")
+                    .accessibilityValue(service.isRunning ? String(format: "%.1fx", service.scrollSpeed) : "")
             }
         }, trailing: {
             HStack(spacing: 6) {
@@ -210,32 +212,6 @@ struct NotchTeleprompterView: View {
 
     private var activePrompterView: some View {
         VStack(spacing: 8) {
-            // Header: page status and navigation
-            HStack(spacing: 12) {
-                Spacer()
-
-                Text("Page \(service.currentPageIndex + 1)")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.55))
-
-                // Pages List Button (switch to cards studio view)
-                Button {
-                    showingPageCards = true
-                } label: {
-                    Image(systemName: "list.bullet")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.8))
-                        .frame(width: 24, height: 24)
-                        .background(Color.white.opacity(0.12))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("View Script Pages")
-
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 4)
-
             // Prompter Script Display with Live Real-time Appearance Updates
             ZStack {
                 SpeechScrollView(
@@ -280,11 +256,11 @@ struct NotchTeleprompterView: View {
                     .allowsHitTesting(false)
                 }
             }
-            .frame(height: max(100, size.height - 75))
+            .frame(height: max(100, size.height - 45))
 
             // Footer bar
             HStack(spacing: 12) {
-                if service.isRunning && !service.isPaused && recognizer.isListening {
+                if service.isRunning && !service.isPaused && (recognizer.isStarting || recognizer.isListening) {
                     liveWaveform
                 }
 
@@ -315,13 +291,6 @@ struct NotchTeleprompterView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.red.opacity(0.9))
                         .lineLimit(1)
-                }
-
-                // Speed indicator if auto-scroll
-                if service.guidanceMode != .wordTracking {
-                    Text(String(format: "%.1fx speed", service.scrollSpeed))
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.6))
                 }
 
                 if service.isRunning {
@@ -363,17 +332,11 @@ struct NotchTeleprompterView: View {
     }
 
     private var liveWaveform: some View {
-        let waveformLevels = Array(recognizer.audioLevels.suffix(20))
-        return HStack(spacing: 2) {
-            ForEach(waveformLevels.indices, id: \.self) { idx in
-                let normalized = pow(waveformLevels[idx], 0.6)
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(service.highlightColor.color.opacity(0.85))
-                    .frame(width: 2, height: max(3.5, normalized * 18))
-            }
-        }
-        .frame(height: 18)
-        .accessibilityLabel(FeatureStrings.teleprompter(l10n.language).listening)
+        TeleprompterWaveformView(levels: recognizer.audioLevels,
+                                 color: service.highlightColor.color,
+                                 isActive: recognizer.isStarting || recognizer.isListening)
+            .frame(width: 58, height: 18)
+            .accessibilityLabel(FeatureStrings.teleprompter(l10n.language).listening)
     }
 
     // MARK: - Helpers

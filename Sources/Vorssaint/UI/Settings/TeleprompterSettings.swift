@@ -115,21 +115,33 @@ struct TeleprompterCueColorPicker: View {
 
 // MARK: - Inline Waveform for Dictation
 
-struct DictationWaveformView: View {
+struct TeleprompterWaveformView: View {
     let levels: [CGFloat]
     var color: Color = .red
+    var isActive: Bool = false
+
+    private let barCount = 16
 
     var body: some View {
-        let waveformLevels = Array(levels.suffix(20))
-        HStack(alignment: .center, spacing: 2) {
-            ForEach(waveformLevels.indices, id: \.self) { idx in
-                let normalized = pow(waveformLevels[idx], 0.6)
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(color)
-                    .frame(width: 2.5, height: max(3.5, normalized * 16))
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isActive)) { timeline in
+            let samples = Array(levels.suffix(barCount))
+            let paddedSamples = Array(repeating: CGFloat.zero, count: barCount - samples.count) + samples
+            let warmingUp = isActive && levels.count < 6
+            let phase = timeline.date.timeIntervalSinceReferenceDate * 6
+
+            HStack(alignment: .center, spacing: 1.5) {
+                ForEach(0..<barCount, id: \.self) { index in
+                    let animatedLevel = 0.12 + (sin(phase + Double(index) * 0.72) + 1) * 0.22
+                    let level = warmingUp ? CGFloat(animatedLevel) : paddedSamples[index]
+                    let normalized = pow(min(1, max(0, level)), 0.6)
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(color.opacity(0.9))
+                        .frame(width: 2, height: max(3.5, normalized * 16))
+                }
             }
+            .frame(height: 16)
+            .animation(.easeOut(duration: 0.08), value: levels)
         }
-        .frame(height: 16)
     }
 }
 
@@ -296,10 +308,14 @@ struct TeleprompterSettings: View {
 
             // MARK: - 2. Script Studio & Notes Section
             Section {
-                ScrollView(.vertical, showsIndicators: pagesList.count > 7) {
+                ScrollView(.vertical, showsIndicators: true) {
                     LazyVStack(spacing: 4) {
                         ForEach(pagesList.indices, id: \.self) { idx in
                             pageRow(index: idx)
+                            if idx < pagesList.count - 1 {
+                                Divider()
+                                    .padding(.leading, 8)
+                            }
                         }
                     }
                     .padding(.vertical, 2)
@@ -1255,6 +1271,8 @@ struct PageEditorDialog: View {
                                 Text("Starting Dictation…")
                                     .font(.system(size: 11, weight: .medium))
                                     .foregroundStyle(.secondary)
+                                TeleprompterWaveformView(levels: dictation.audioLevels, color: .red, isActive: true)
+                                    .frame(width: 56, height: 16)
                                 Button {
                                     stopDictation()
                                 } label: {
@@ -1277,7 +1295,8 @@ struct PageEditorDialog: View {
                                     .font(.system(size: 11, weight: .medium))
                                     .foregroundStyle(.red)
 
-                                DictationWaveformView(levels: dictation.audioLevels, color: .red)
+                                TeleprompterWaveformView(levels: dictation.audioLevels, color: .red, isActive: true)
+                                    .frame(width: 56, height: 16)
 
                                 Button {
                                     stopDictation()
