@@ -61,107 +61,10 @@ struct InfoTip: View {
     }
 }
 
-private struct TeleprompterPlacementPreview: View {
-    let mode: TeleprompterOverlayMode
-    let highlightColor: Color
-    let autoNextPage: Bool
-    let elapsedTime: Bool
-    let width: Double
-    let height: Double
-
-    private var sampleWidth: CGFloat {
-        let range = TeleprompterService.windowWidthRange(for: mode)
-        let progress = (width - range.lowerBound) / max(1, range.upperBound - range.lowerBound)
-        return CGFloat(132 + min(1, max(0, progress)) * 32)
-    }
-
-    private var sampleHeight: CGFloat {
-        let range = TeleprompterService.windowHeightRange(for: mode)
-        let progress = (height - range.lowerBound) / max(1, range.upperBound - range.lowerBound)
-        return CGFloat(48 + min(1, max(0, progress)) * 14)
-    }
-
-    var body: some View {
-        ZStack(alignment: .top) {
-            RoundedRectangle(cornerRadius: mode == .notch ? 5 : 12, style: .continuous)
-                .fill(mode == .notch ? Color.white.opacity(0.13) : Color.black.opacity(0.94))
-
-            if mode == .notch {
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(.black)
-                    .frame(width: 52, height: 16)
-                    .frame(maxWidth: .infinity, alignment: .top)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                if mode == .floating {
-                    HStack(spacing: 3) {
-                        Circle().fill(Color.red.opacity(0.7)).frame(width: 4, height: 4)
-                        Circle().fill(Color.yellow.opacity(0.7)).frame(width: 4, height: 4)
-                        Circle().fill(Color.green.opacity(0.7)).frame(width: 4, height: 4)
-                        Spacer(minLength: 3)
-                        statusItems
-                    }
-                    .frame(height: 6)
-                } else {
-                    HStack {
-                        Spacer()
-                        statusItems
-                    }
-                    .frame(height: 8)
-                }
-
-                HStack(spacing: 3) {
-                    Text("A quick brown fox jumps")
-                        .foregroundStyle(highlightColor)
-                    Text("over the quiet fence")
-                            .foregroundStyle(mode == .notch ? Color.white.opacity(0.72) : Color.white.opacity(0.58))
-                }
-                Text("Then follows the winding path…")
-                    .foregroundStyle(mode == .notch ? Color.white.opacity(0.55) : Color.white.opacity(0.42))
-            }
-            .font(.system(size: 7, weight: .medium))
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .padding(.horizontal, 8)
-            .padding(.top, mode == .notch ? 15 : 6)
-        }
-        .frame(width: sampleWidth, height: sampleHeight)
-        .overlay {
-            RoundedRectangle(cornerRadius: mode == .notch ? 5 : 12, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
-        }
-        .accessibilityLabel("Static \(mode.label) example")
-        .accessibilityHidden(true)
-    }
-
-    private var statusItems: some View {
-        HStack(spacing: 4) {
-            if elapsedTime {
-                Text("00:12")
-                    .font(.system(size: 7, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.68))
-            }
-            if autoNextPage {
-                HStack(spacing: 3) {
-                    Image(systemName: "chevron.left")
-                    Image(systemName: "chevron.right")
-                }
-                .font(.system(size: 7, weight: .bold))
-                .foregroundStyle(.white.opacity(0.78))
-            }
-        }
-    }
-}
-
 private struct TeleprompterAppearanceOption: View {
     let mode: TeleprompterOverlayMode
     let isSelected: Bool
     let highlightColor: Color
-    let autoNextPage: Bool
-    let elapsedTime: Bool
-    let width: Double
-    let height: Double
     let isPreviewActive: Bool
     let canPreview: Bool
     let selectAction: () -> Void
@@ -170,29 +73,19 @@ private struct TeleprompterAppearanceOption: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Button(action: selectAction) {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 6) {
-                        Image(systemName: mode.icon)
-                            .foregroundStyle(isSelected ? highlightColor : .secondary)
-                        Text(mode.label)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                        Spacer(minLength: 0)
-                        if isSelected {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(highlightColor)
-                                .font(.system(size: 12))
-                        }
+                HStack(spacing: 6) {
+                    Image(systemName: mode.icon)
+                        .foregroundStyle(isSelected ? highlightColor : .secondary)
+                    Text(mode.label)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(highlightColor)
+                            .font(.system(size: 12))
                     }
-                    TeleprompterPlacementPreview(
-                        mode: mode,
-                        highlightColor: highlightColor,
-                        autoNextPage: autoNextPage,
-                        elapsedTime: elapsedTime,
-                        width: width,
-                        height: height
-                    )
                 }
                 .contentShape(Rectangle())
             }
@@ -210,7 +103,7 @@ private struct TeleprompterAppearanceOption: View {
                 .disabled(!canPreview)
             }
         }
-        .padding(9)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             isSelected ? highlightColor.opacity(0.10) : Color.primary.opacity(0.035),
@@ -504,10 +397,6 @@ struct TeleprompterSettings: View {
                                 mode: mode,
                                 isSelected: service.overlayMode == mode,
                                 highlightColor: service.highlightColor.color,
-                                autoNextPage: service.autoNextPage,
-                                elapsedTime: service.showElapsedTime,
-                                width: service.windowWidth,
-                                height: service.windowHeight,
                                 isPreviewActive: mode == .notch
                                     ? service.isPreviewingInNotch : service.isPreviewingFloating,
                                 canPreview: teleprompterEnabled && !service.isRunning,
