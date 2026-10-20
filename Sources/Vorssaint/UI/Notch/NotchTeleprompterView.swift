@@ -69,7 +69,7 @@ struct NotchTeleprompterView: View {
 
                 // Edit Script Button
                 Button {
-                    editingText = service.text
+                    editingText = service.currentScript
                     showingEditor = true
                 } label: {
                     Image(systemName: "square.and.pencil")
@@ -175,7 +175,7 @@ struct NotchTeleprompterView: View {
                         .font(.headline)
                     Spacer()
                     Button("Done") {
-                        service.text = editingText
+                        service.currentScript = editingText
                         service.savePreferences()
                         showingEditor = false
                     }

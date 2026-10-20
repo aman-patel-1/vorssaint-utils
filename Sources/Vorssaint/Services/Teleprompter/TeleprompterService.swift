@@ -16,6 +16,8 @@ final class TeleprompterService: ObservableObject {
     @Published var text: String = "Welcome to Vorssaint Teleprompter.\n\nRead your script naturally while on camera. Words highlight in real time as you speak, powered by 100% on-device speech recognition."
     @Published var pages: [String] = []
     @Published var currentPageIndex: Int = 0
+    @Published var readPages: Set<Int> = []
+
     @Published var guidanceMode: GuidanceMode = .wordTracking
     @Published var overlayMode: TeleprompterOverlayMode = .notch
     @Published var scrollSpeed: Double = 2.5
@@ -27,18 +29,37 @@ final class TeleprompterService: ObservableObject {
     @Published var remoteServerEnabled: Bool = false
     @Published var floatingWindowVisible: Bool = false
 
+    // Director and External Display
+    @Published var directorServerEnabled: Bool = false
+    @Published var externalDisplayMode: ExternalDisplayMode = .off
+    @Published var externalMirrorAxis: ExternalMirrorAxis = .horizontal
+    @Published var externalScreenID: UInt32 = 0
+
     let speechRecognizer = SpeechRecognizer()
     let remoteServer = TeleprompterServer()
+    let directorServer = DirectorServer()
+    let dictationManager = DictationManager()
+    let externalDisplayController = ExternalDisplayController()
 
     private var autoScrollTimer: Timer?
     private var words: [String] = []
     private var cancellables = Set<AnyCancellable>()
 
     var currentScript: String {
-        if !pages.isEmpty && currentPageIndex < pages.count {
-            return pages[currentPageIndex]
+        get {
+            if !pages.isEmpty && currentPageIndex < pages.count {
+                return pages[currentPageIndex]
+            }
+            return text
         }
-        return text
+        set {
+            if pages.isEmpty {
+                text = newValue
+            } else if currentPageIndex < pages.count {
+                pages[currentPageIndex] = newValue
+            }
+            savePreferences()
+        }
     }
 
     var currentWords: [String] {
@@ -73,6 +94,12 @@ final class TeleprompterService: ObservableObject {
         } else if !remoteServerEnabled && remoteServer.isRunning {
             remoteServer.stop()
         }
+
+        if directorServerEnabled && !directorServer.isRunning {
+            directorServer.start()
+        } else if !directorServerEnabled && directorServer.isRunning {
+            directorServer.stop()
+        }
     }
 
     private func loadPreferences() {
@@ -80,6 +107,11 @@ final class TeleprompterService: ObservableObject {
         if let savedText = defaults.string(forKey: DefaultsKey.teleprompterScriptText), !savedText.isEmpty {
             text = savedText
         }
+        if let savedPages = defaults.stringArray(forKey: DefaultsKey.teleprompterPages), !savedPages.isEmpty {
+            pages = savedPages
+        }
+        currentPageIndex = max(0, min(pages.isEmpty ? 0 : pages.count - 1, defaults.integer(forKey: DefaultsKey.teleprompterCurrentPageIndex)))
+
         if let modeStr = defaults.string(forKey: DefaultsKey.teleprompterGuidanceMode),
            let mode = GuidanceMode(rawValue: modeStr) {
             guidanceMode = mode
@@ -113,11 +145,26 @@ final class TeleprompterService: ObservableObject {
             selectedMicUID = mic
         }
         remoteServerEnabled = defaults.bool(forKey: DefaultsKey.teleprompterRemoteServerEnabled)
+        directorServerEnabled = defaults.bool(forKey: DefaultsKey.teleprompterDirectorServerEnabled)
+
+        if let extModeStr = defaults.string(forKey: DefaultsKey.teleprompterExternalDisplayMode),
+           let em = ExternalDisplayMode(rawValue: extModeStr) {
+            externalDisplayMode = em
+        }
+        if let mirrorAxisStr = defaults.string(forKey: DefaultsKey.teleprompterExternalDisplayMirrorAxis),
+           let ma = ExternalMirrorAxis(rawValue: mirrorAxisStr) {
+            externalMirrorAxis = ma
+        }
+        externalScreenID = UInt32(defaults.integer(forKey: DefaultsKey.teleprompterExternalScreenID))
     }
 
     func savePreferences() {
         let defaults = UserDefaults.standard
         defaults.set(text, forKey: DefaultsKey.teleprompterScriptText)
+        if !pages.isEmpty {
+            defaults.set(pages, forKey: DefaultsKey.teleprompterPages)
+        }
+        defaults.set(currentPageIndex, forKey: DefaultsKey.teleprompterCurrentPageIndex)
         defaults.set(guidanceMode.rawValue, forKey: DefaultsKey.teleprompterGuidanceMode)
         defaults.set(overlayMode.rawValue, forKey: DefaultsKey.teleprompterOverlayMode)
         defaults.set(scrollSpeed, forKey: DefaultsKey.teleprompterScrollSpeed)
@@ -127,6 +174,10 @@ final class TeleprompterService: ObservableObject {
         defaults.set(speechLocale, forKey: DefaultsKey.teleprompterSpeechLanguage)
         defaults.set(selectedMicUID, forKey: DefaultsKey.teleprompterSelectedMicUID)
         defaults.set(remoteServerEnabled, forKey: DefaultsKey.teleprompterRemoteServerEnabled)
+        defaults.set(directorServerEnabled, forKey: DefaultsKey.teleprompterDirectorServerEnabled)
+        defaults.set(externalDisplayMode.rawValue, forKey: DefaultsKey.teleprompterExternalDisplayMode)
+        defaults.set(externalMirrorAxis.rawValue, forKey: DefaultsKey.teleprompterExternalDisplayMirrorAxis)
+        defaults.set(Int(externalScreenID), forKey: DefaultsKey.teleprompterExternalScreenID)
     }
 
     private func setupObservers() {
@@ -143,6 +194,99 @@ final class TeleprompterService: ObservableObject {
                 self?.stop()
             }
             .store(in: &cancellables)
+
+        // Director Server Callbacks
+        directorServer.onSetText = { [weak self] newText in
+            DispatchQueue.main.async {
+                self?.handleDirectorSetText(newText)
+            }
+        }
+
+        directorServer.onUpdateText = { [weak self] newText, charCount in
+            DispatchQueue.main.async {
+                self?.handleDirectorUpdateText(newText, charCount: charCount)
+            }
+        }
+
+        directorServer.onStop = { [weak self] in
+            DispatchQueue.main.async {
+                self?.stop()
+            }
+        }
+
+        directorServer.onNextPage = { [weak self] in
+            DispatchQueue.main.async {
+                self?.nextPage()
+            }
+        }
+
+        directorServer.onPrevPage = { [weak self] in
+            DispatchQueue.main.async {
+                self?.previousPage()
+            }
+        }
+    }
+
+    // MARK: - Director Server Command Handlers
+
+    private func handleDirectorSetText(_ newText: String) {
+        currentScript = newText
+        words = splitTextIntoWords(newText)
+        speechRecognizer.start(with: newText)
+        updateBroadcasts()
+    }
+
+    private func handleDirectorUpdateText(_ newText: String, charCount: Int) {
+        currentScript = newText
+        words = splitTextIntoWords(newText)
+        speechRecognizer.updateText(newText, preservingCharCount: charCount)
+        updateBroadcasts()
+    }
+
+    private func updateBroadcasts() {
+        let script = currentScript
+        let hasNext = currentPageIndex < pages.count - 1
+        if remoteServerEnabled {
+            remoteServer.updateContent(words: words, totalCharCount: script.count, hasNextPage: hasNext)
+        }
+        if directorServerEnabled {
+            directorServer.updateContent(words: words, totalCharCount: script.count)
+        }
+    }
+
+    // MARK: - Multi-page Management
+
+    func addPage() {
+        if pages.isEmpty {
+            pages = [text, ""]
+            currentPageIndex = 1
+        } else {
+            pages.append("")
+            currentPageIndex = pages.count - 1
+        }
+        savePreferences()
+    }
+
+    func removePage(at index: Int) {
+        guard !pages.isEmpty, index >= 0, index < pages.count else { return }
+        pages.remove(at: index)
+        if pages.isEmpty {
+            pages = [""]
+            currentPageIndex = 0
+        } else {
+            currentPageIndex = min(currentPageIndex, pages.count - 1)
+        }
+        savePreferences()
+    }
+
+    func jumpToPage(index: Int) {
+        guard !pages.isEmpty, index >= 0, index < pages.count else { return }
+        currentPageIndex = index
+        readPages.insert(index)
+        savePreferences()
+        if isRunning {
+            restartCurrentPage()
+        }
     }
 
     // MARK: - Playback Control
@@ -174,6 +318,8 @@ final class TeleprompterService: ObservableObject {
             startAutoScrollTimer()
         }
 
+        let hasNext = currentPageIndex < pages.count - 1
+
         if remoteServerEnabled {
             if !remoteServer.isRunning {
                 remoteServer.start()
@@ -182,7 +328,30 @@ final class TeleprompterService: ObservableObject {
                 speechRecognizer: speechRecognizer,
                 words: words,
                 totalCharCount: script.count,
-                hasNextPage: currentPageIndex < pages.count - 1
+                hasNextPage: hasNext
+            )
+        }
+
+        if directorServerEnabled {
+            if !directorServer.isRunning {
+                directorServer.start()
+            }
+            directorServer.showContent(
+                speechRecognizer: speechRecognizer,
+                words: words,
+                totalCharCount: script.count
+            )
+        }
+
+        if externalDisplayMode != .off {
+            externalDisplayController.show(
+                speechRecognizer: speechRecognizer,
+                words: words,
+                script: script,
+                font: fontFamily.nsFont(ofSize: fontSize.pointSize * 1.5),
+                highlightColor: highlightColor.color,
+                mode: externalDisplayMode,
+                mirrorAxis: externalMirrorAxis
             )
         }
 
@@ -216,8 +385,11 @@ final class TeleprompterService: ObservableObject {
         autoScrollTimer = nil
         speechRecognizer.stop()
         remoteServer.hideContent()
+        directorServer.hideContent()
+        externalDisplayController.dismiss()
         floatingWindowVisible = false
         TeleprompterFloatingWindowController.shared.hide()
+        readPages.insert(currentPageIndex)
     }
 
     func jumpTo(charOffset: Int) {
@@ -225,6 +397,7 @@ final class TeleprompterService: ObservableObject {
     }
 
     func nextPage() {
+        readPages.insert(currentPageIndex)
         guard !pages.isEmpty, currentPageIndex < pages.count - 1 else {
             stop()
             return
@@ -243,11 +416,30 @@ final class TeleprompterService: ObservableObject {
         let script = currentScript
         words = splitTextIntoWords(script)
         speechRecognizer.start(with: script)
+
+        let hasNext = currentPageIndex < pages.count - 1
         if remoteServerEnabled {
             remoteServer.updateContent(
                 words: words,
                 totalCharCount: script.count,
-                hasNextPage: currentPageIndex < pages.count - 1
+                hasNextPage: hasNext
+            )
+        }
+        if directorServerEnabled {
+            directorServer.updateContent(
+                words: words,
+                totalCharCount: script.count
+            )
+        }
+        if externalDisplayMode != .off {
+            externalDisplayController.show(
+                speechRecognizer: speechRecognizer,
+                words: words,
+                script: script,
+                font: fontFamily.nsFont(ofSize: fontSize.pointSize * 1.5),
+                highlightColor: highlightColor.color,
+                mode: externalDisplayMode,
+                mirrorAxis: externalMirrorAxis
             )
         }
     }
@@ -292,8 +484,10 @@ final class TeleprompterService: ObservableObject {
         let extracted = try PresentationNotesExtractor.extractNotes(from: url)
         pages = extracted
         currentPageIndex = 0
+        readPages.removeAll()
         if let first = extracted.first {
             text = first
         }
+        savePreferences()
     }
 }

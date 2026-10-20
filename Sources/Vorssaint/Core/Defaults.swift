@@ -220,6 +220,13 @@ enum DefaultsKey {
     static let teleprompterSelectedMicUID = "teleprompterSelectedMicUID"
     static let teleprompterRemoteServerEnabled = "teleprompterRemoteServerEnabled"
     static let teleprompterRemoteServerPort = "teleprompterRemoteServerPort"
+    static let teleprompterPages = "teleprompterPages"
+    static let teleprompterCurrentPageIndex = "teleprompterCurrentPageIndex"
+    static let teleprompterDirectorServerEnabled = "teleprompterDirectorServerEnabled"
+    static let teleprompterDirectorServerPort = "teleprompterDirectorServerPort"
+    static let teleprompterExternalDisplayMode = "teleprompterExternalDisplayMode"
+    static let teleprompterExternalDisplayMirrorAxis = "teleprompterExternalDisplayMirrorAxis"
+    static let teleprompterExternalScreenID = "teleprompterExternalScreenID"
     static let extraBrightnessEnabled = "extraBrightnessEnabled"
     static let extraBrightnessLevel = "extraBrightnessLevel"   // Int percent 0-100
     static let brightnessControlEnabled = "brightnessControlEnabled" // sliders for every display

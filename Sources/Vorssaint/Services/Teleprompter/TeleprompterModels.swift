@@ -286,3 +286,60 @@ func splitTextIntoWords(_ text: String) -> [String] {
     return result
 }
 
+// MARK: - External Display Modes
+
+enum ExternalDisplayMode: String, CaseIterable, Identifiable {
+    case off
+    case fullscreen
+    case mirror
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .off:        return "Off"
+        case .fullscreen: return "Second Monitor"
+        case .mirror:     return "Mirror (Prompter Glass)"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .off:        return "display.slash"
+        case .fullscreen: return "display.2"
+        case .mirror:     return "arrow.left.and.right.righttriangle.left.righttriangle.right"
+        }
+    }
+}
+
+enum ExternalMirrorAxis: String, CaseIterable, Identifiable {
+    case horizontal
+    case vertical
+    case both
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .horizontal: return "Horizontal (Beam Splitter Glass)"
+        case .vertical:   return "Vertical"
+        case .both:       return "Both"
+        }
+    }
+}
+
+// MARK: - NSScreen Display ID Extension
+
+extension NSScreen {
+    var displayID: UInt32 {
+        guard let screenNumber = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
+            return 0
+        }
+        return screenNumber.uint32Value
+    }
+
+    var displayName: String {
+        localizedName
+    }
+}
+
