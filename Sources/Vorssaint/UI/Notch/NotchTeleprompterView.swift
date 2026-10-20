@@ -92,7 +92,7 @@ struct NotchTeleprompterView: View {
                         dragStartHeight = Double(service.windowHeight)
                     }
                     let newHeight = dragStartHeight + Double(value.translation.height)
-                    service.windowHeight = max(180, min(650, newHeight))
+                    service.windowHeight = max(130, min(650, newHeight))
                 }
                 .onEnded { _ in
                     dragStartHeight = -1
@@ -268,7 +268,7 @@ struct NotchTeleprompterView: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.horizontal, 16)
-            .frame(height: max(100, size.height - 45))
+            .frame(height: max(70, size.height - 55))
 
             // Footer bar
             HStack(spacing: 12) {
