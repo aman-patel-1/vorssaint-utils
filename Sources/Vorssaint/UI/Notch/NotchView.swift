@@ -494,6 +494,8 @@ struct NotchView: View {
         case .files:
             // One shelf tile and its vertical insets; the actions are in the top row.
             size.height = max(size.height, 88 + 8)
+        case .teleprompter:
+            size.height = max(size.height, 240)
         default: break
         }
         return size

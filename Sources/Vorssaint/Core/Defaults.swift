@@ -209,6 +209,7 @@ enum DefaultsKey {
     static let shelfShortcutAddsFinderSelection = "shelfShortcutAddsFinderSelection"
     static let shelfAutomaticExclusions = "shelfAutomaticExclusions" // [bundle id] blocks automatic opening only
     // Teleprompter
+    static let teleprompterEnabled = "teleprompterEnabled"
     static let teleprompterScriptText = "teleprompterScriptText"
     static let teleprompterGuidanceMode = "teleprompterGuidanceMode"
     static let teleprompterOverlayMode = "teleprompterOverlayMode"

@@ -24,13 +24,13 @@ struct HighlightingTextEditor: NSViewRepresentable {
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = false
 
-        let textView = NSTextView()
+        let textView = PrompterScriptTextView()
         textView.isEditable = true
         textView.isSelectable = true
         textView.allowsUndo = true
         textView.isRichText = false
         textView.drawsBackground = false
-        textView.textContainerInset = NSSize(width: 0, height: 0)
+        textView.textContainerInset = NSSize(width: 4, height: 4)
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = false
@@ -141,6 +141,8 @@ struct HighlightingTextEditor: NSViewRepresentable {
             let text = textStorage.string
             let selectedRanges = textView.selectedRanges
 
+            // Disable undo registration while applying styling so user's undo stack isn't polluted
+            textView.undoManager?.disableUndoRegistration()
             textStorage.beginEditing()
             let defaultAttributes: [NSAttributedString.Key: Any] = [
                 .font: parent.font,
@@ -161,7 +163,55 @@ struct HighlightingTextEditor: NSViewRepresentable {
             }
 
             textStorage.endEditing()
+            textView.undoManager?.enableUndoRegistration()
             textView.selectedRanges = selectedRanges
         }
+    }
+}
+
+/// A dedicated NSTextView subclass ensuring standard editing shortcuts (Undo, Redo, Cut, Copy, Paste, Select All)
+/// execute reliably in auxiliary windows, sheets, and embedded panels.
+final class PrompterScriptTextView: NSTextView {
+    override var allowsUndo: Bool {
+        get { true }
+        set { super.allowsUndo = newValue }
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard event.type == .keyDown else { return super.performKeyEquivalent(with: event) }
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        if flags == .command {
+            switch event.charactersIgnoringModifiers?.lowercased() {
+            case "z":
+                if let um = undoManager, um.canUndo {
+                    um.undo()
+                    return true
+                }
+            case "x":
+                cut(nil)
+                return true
+            case "c":
+                copy(nil)
+                return true
+            case "v":
+                paste(nil)
+                return true
+            case "a":
+                selectAll(nil)
+                return true
+            default:
+                break
+            }
+        } else if flags == [.command, .shift] {
+            if event.charactersIgnoringModifiers?.lowercased() == "z" {
+                if let um = undoManager, um.canRedo {
+                    um.redo()
+                    return true
+                }
+            }
+        }
+
+        return super.performKeyEquivalent(with: event)
     }
 }

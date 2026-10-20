@@ -29,7 +29,23 @@ final class TeleprompterFloatingWindowController: NSWindowController {
     }
 
     func show() {
-        window?.makeKeyAndOrderFront(nil)
+        guard let panel = window as? NSPanel else { return }
+        panel.level = .floating
+        panel.orderFrontRegardless()
+    }
+
+    func showAtNotch(screen: NSScreen? = nil) {
+        guard let panel = window as? NSPanel else { return }
+        let targetScreen = screen ?? NSScreen.main ?? NSScreen.screens.first
+        if let frame = targetScreen?.frame {
+            let width: CGFloat = 460
+            let height: CGFloat = 200
+            let x = frame.midX - width / 2
+            let y = frame.maxY - height - 8
+            panel.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
+        }
+        panel.level = .screenSaver
+        panel.orderFrontRegardless()
     }
 
     func hide() {

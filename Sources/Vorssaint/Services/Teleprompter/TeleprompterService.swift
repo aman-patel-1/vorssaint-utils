@@ -345,7 +345,13 @@ final class TeleprompterService: ObservableObject {
             )
         }
 
-        if overlayMode == .floating {
+        if overlayMode == .notch {
+            if NotchSupport.isEnabled() {
+                NotchService.shared.open(.teleprompter, pinned: true)
+            } else {
+                TeleprompterFloatingWindowController.shared.showAtNotch()
+            }
+        } else if overlayMode == .floating {
             floatingWindowVisible = true
             TeleprompterFloatingWindowController.shared.show()
         }
@@ -379,6 +385,9 @@ final class TeleprompterService: ObservableObject {
         externalDisplayController.dismiss()
         floatingWindowVisible = false
         TeleprompterFloatingWindowController.shared.hide()
+        if NotchService.shared.expanded && NotchService.shared.selected == .teleprompter {
+            NotchService.shared.collapse()
+        }
         readPages.insert(currentPageIndex)
     }
 

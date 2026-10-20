@@ -48,8 +48,14 @@ struct TeleprompterSettings: View {
     @State private var spokenSkipOffset: Int = 0
     @State private var lastRawSpokenLength: Int = 0
 
+    @AppStorage(DefaultsKey.teleprompterEnabled) private var teleprompterEnabled = true
+
     // Tab for Remote Controls
     @State private var selectedRemoteTab: Int = 0
+
+    private var strings: TeleprompterStrings {
+        FeatureStrings.teleprompter(l10n.language)
+    }
 
     private var scriptBinding: Binding<String> {
         Binding(
@@ -72,17 +78,35 @@ struct TeleprompterSettings: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                scriptStudioCard
-                guidanceModeCard
-                displayOverlayCard
-                externalDisplayCard
-                microphoneSpeechCard
-                importScriptCard
-                remoteControlsCard
+            VStack(alignment: .leading, spacing: 20) {
+                // Header (matches DockSettings, ClipboardSettings, etc.)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(strings.title).font(.title2.bold())
+                    Text(strings.hubDescription)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                // Master Feature Enable Card
+                masterFeatureCard
+                    .settingsSectionAnchor(.teleprompter, cornerRadius: 16)
+
+                if teleprompterEnabled {
+                    scriptStudioCard
+                    guidanceModeCard
+                    displayOverlayCard
+                    externalDisplayCard
+                    microphoneSpeechCard
+                    importScriptCard
+                    remoteControlsCard
+                }
             }
-            .padding(20)
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
+            .padding(22)
         }
+        .toggleStyle(.switch)
         .onAppear {
             inputDevices = AudioInputDevice.allInputDevices()
         }
@@ -93,56 +117,74 @@ struct TeleprompterSettings: View {
         }
     }
 
+    // MARK: - Master Feature Card
+
+    @ViewBuilder
+    private var masterFeatureCard: some View {
+        SettingsCard {
+            SettingsRow(
+                symbol: AppFeature.teleprompter.symbolName,
+                title: "Enable Teleprompter",
+                caption: strings.hubDescription
+            ) {
+                Toggle("Enable Teleprompter", isOn: $teleprompterEnabled)
+                    .labelsHidden()
+            }
+
+            if teleprompterEnabled {
+                Divider()
+
+                HStack(spacing: 12) {
+                    Button {
+                        service.toggle()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: service.isRunning && !service.isPaused ? "pause.fill" : "play.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                            Text(service.isRunning && !service.isPaused ? strings.pause : (service.isRunning ? strings.resume : strings.start))
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(service.isRunning && !service.isPaused ? .orange : .accentColor)
+
+                    if service.isRunning {
+                        Button {
+                            service.stop()
+                        } label: {
+                            Label(strings.stop, systemImage: "stop.fill")
+                                .font(.system(size: 13, weight: .medium))
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    Spacer()
+
+                    // Status pill
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(service.isRunning ? (service.isPaused ? Color.yellow : Color.green) : Color.secondary.opacity(0.4))
+                            .frame(width: 8, height: 8)
+
+                        Text(service.isRunning ? (service.isPaused ? "Paused" : (service.overlayMode == .notch ? "Active in Dynamic Island" : "Active in Floating HUD")) : "Ready")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(service.isRunning ? .primary : .secondary)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.secondary.opacity(0.12), in: Capsule())
+                }
+            }
+        }
+    }
+
     // MARK: - 1. Script Studio Card
 
     @ViewBuilder
     private var scriptStudioCard: some View {
         SettingsCard(title: "Script Studio & Notes") {
-            // Header Bar: Play/Pause/Stop & Live Status
-            HStack(spacing: 12) {
-                Button {
-                    service.toggle()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: service.isRunning && !service.isPaused ? "pause.fill" : "play.fill")
-                            .font(.system(size: 13, weight: .semibold))
-                        Text(service.isRunning && !service.isPaused ? "Pause Prompter" : (service.isRunning ? "Resume" : "Start Prompter"))
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 7)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(service.isRunning && !service.isPaused ? .orange : .accentColor)
-
-                if service.isRunning {
-                    Button {
-                        service.stop()
-                    } label: {
-                        Label("Stop", systemImage: "stop.fill")
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                    .buttonStyle(.bordered)
-                }
-
-                Spacer()
-
-                // Status Pill
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(service.isRunning ? (service.isPaused ? Color.yellow : Color.red) : Color.secondary.opacity(0.5))
-                        .frame(width: 8, height: 8)
-
-                    Text(service.isRunning ? (service.isPaused ? "Paused" : "Live (\(service.overlayMode.label))") : "Ready")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(service.isRunning ? .primary : .secondary)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Color.secondary.opacity(0.12), in: Capsule())
-            }
-
-            Divider()
 
             // Multi-page Tabs Bar
             HStack(spacing: 8) {
@@ -302,34 +344,41 @@ struct TeleprompterSettings: View {
 
     @ViewBuilder
     private var guidanceModeCard: some View {
-        SettingsCard(title: "Guidance Mode") {
-            Picker("Mode", selection: $service.guidanceMode) {
-                ForEach(GuidanceMode.allCases) { mode in
-                    Label(mode.label, systemImage: mode.icon).tag(mode)
+        SettingsCard(title: "Speech & Scroll Guidance") {
+            SettingsRow(
+                symbol: service.guidanceMode.icon,
+                title: "Tracking Mode",
+                caption: service.guidanceMode.subtitle
+            ) {
+                Picker("Mode", selection: $service.guidanceMode) {
+                    ForEach(GuidanceMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 280)
+                .onChange(of: service.guidanceMode) {
+                    service.savePreferences()
                 }
             }
-            .pickerStyle(.segmented)
-            .onChange(of: service.guidanceMode) {
-                service.savePreferences()
-            }
-
-            Text(service.guidanceMode.subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
 
             if service.guidanceMode != .wordTracking {
-                Divider()
-                VStack(spacing: 6) {
-                    HStack {
-                        Text("Scroll Speed")
-                        Spacer()
-                        Text(String(format: "%.1f words/sec", service.scrollSpeed))
+                SettingsRow(
+                    symbol: "gauge.with.dots.needle.50percent",
+                    title: "Scroll Speed",
+                    caption: String(format: "%.1f words per second", service.scrollSpeed)
+                ) {
+                    HStack(spacing: 8) {
+                        Slider(value: $service.scrollSpeed, in: 0.5...8.0, step: 0.5)
+                            .frame(width: 140)
+                            .onChange(of: service.scrollSpeed) {
+                                service.savePreferences()
+                            }
+                        Text(String(format: "%.1f w/s", service.scrollSpeed))
+                            .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
+                            .frame(width: 44, alignment: .trailing)
                     }
-                    Slider(value: $service.scrollSpeed, in: 0.5...8.0, step: 0.5)
-                        .onChange(of: service.scrollSpeed) {
-                            service.savePreferences()
-                        }
                 }
             }
         }
@@ -339,37 +388,38 @@ struct TeleprompterSettings: View {
 
     @ViewBuilder
     private var displayOverlayCard: some View {
-        SettingsCard(title: "Display & Overlay") {
-            Picker("Placement", selection: $service.overlayMode) {
-                ForEach(TeleprompterOverlayMode.allCases) { mode in
-                    Label(mode.label, systemImage: mode.icon).tag(mode)
+        SettingsCard(title: "Display & Appearance") {
+            SettingsRow(
+                symbol: service.overlayMode.icon,
+                title: "Prompter Placement",
+                caption: service.overlayMode == .notch ? "Appears in Dynamic Island under the camera" : "Floats anywhere as a draggable HUD window"
+            ) {
+                Picker("Placement", selection: $service.overlayMode) {
+                    ForEach(TeleprompterOverlayMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 220)
+                .onChange(of: service.overlayMode) {
+                    service.savePreferences()
                 }
             }
-            .pickerStyle(.segmented)
-            .onChange(of: service.overlayMode) {
-                service.savePreferences()
-            }
 
-            Divider()
-
-            HStack {
-                Text("Font Family")
-                Spacer()
+            SettingsRow(symbol: "textformat", title: "Font Family", caption: "Typography used for displayed prompter text") {
                 Picker("", selection: $service.fontFamily) {
                     ForEach(TeleprompterFontFamilyPreset.allCases) { font in
                         Text(font.label).tag(font)
                     }
                 }
                 .pickerStyle(.menu)
-                .frame(width: 140)
+                .frame(width: 150)
                 .onChange(of: service.fontFamily) {
                     service.savePreferences()
                 }
             }
 
-            HStack {
-                Text("Font Size")
-                Spacer()
+            SettingsRow(symbol: "textformat.size", title: "Font Size", caption: "Size of displayed speech text") {
                 Picker("", selection: $service.fontSize) {
                     ForEach(TeleprompterFontSizePreset.allCases) { size in
                         Text(size.label).tag(size)
@@ -382,9 +432,7 @@ struct TeleprompterSettings: View {
                 }
             }
 
-            HStack {
-                Text("Highlight Color")
-                Spacer()
+            SettingsRow(symbol: "paintpalette.fill", title: "Highlight Accent", caption: "Color tracking active spoken words") {
                 HStack(spacing: 8) {
                     ForEach(TeleprompterHighlightColorPreset.allCases) { preset in
                         Button {
@@ -411,29 +459,34 @@ struct TeleprompterSettings: View {
     @ViewBuilder
     private var externalDisplayCard: some View {
         SettingsCard(title: "External Display & Mirroring") {
-            Picker("External Display Output", selection: $service.externalDisplayMode) {
-                ForEach(ExternalDisplayMode.allCases) { mode in
-                    Label(mode.label, systemImage: mode.icon).tag(mode)
+            SettingsRow(
+                symbol: "display.2",
+                title: "External Display Output",
+                caption: "Project onto an external screen, projector, or teleprompter beam-splitter glass"
+            ) {
+                Picker("", selection: $service.externalDisplayMode) {
+                    ForEach(ExternalDisplayMode.allCases) { mode in
+                        Label(mode.label, systemImage: mode.icon).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 220)
+                .onChange(of: service.externalDisplayMode) {
+                    service.savePreferences()
                 }
             }
-            .pickerStyle(.segmented)
-            .onChange(of: service.externalDisplayMode) {
-                service.savePreferences()
-            }
-
-            Text("Project the teleprompter onto a second screen, projector, or teleprompter beam-splitter glass rig.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
 
             if service.externalDisplayMode != .off {
                 Divider()
 
-                HStack {
-                    Text("Target Screen")
-                    Spacer()
-                    let externalScreens = NSScreen.screens.filter { $0 != NSScreen.main }
+                let externalScreens = NSScreen.screens.filter { $0 != NSScreen.main }
+                SettingsRow(
+                    symbol: "display",
+                    title: "Target Screen",
+                    caption: externalScreens.isEmpty ? "No external display detected" : "Select target monitor for prompter output"
+                ) {
                     if externalScreens.isEmpty {
-                        Text("No external display detected")
+                        Text("None detected")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
@@ -443,7 +496,7 @@ struct TeleprompterSettings: View {
                             }
                         }
                         .pickerStyle(.menu)
-                        .frame(width: 200)
+                        .frame(width: 180)
                         .onChange(of: service.externalScreenID) {
                             service.savePreferences()
                         }
@@ -451,16 +504,18 @@ struct TeleprompterSettings: View {
                 }
 
                 if service.externalDisplayMode == .mirror {
-                    HStack {
-                        Text("Mirror Axis (Glass Reflection)")
-                        Spacer()
+                    SettingsRow(
+                        symbol: "arrow.left.and.right.righttriangle.left.righttriangle.right",
+                        title: "Mirror Axis",
+                        caption: "Invert text orientation for reflective beam splitter glass rigs"
+                    ) {
                         Picker("", selection: $service.externalMirrorAxis) {
                             ForEach(ExternalMirrorAxis.allCases) { axis in
                                 Text(axis.label).tag(axis)
                             }
                         }
                         .pickerStyle(.menu)
-                        .frame(width: 240)
+                        .frame(width: 180)
                         .onChange(of: service.externalMirrorAxis) {
                             service.savePreferences()
                         }
@@ -475,9 +530,11 @@ struct TeleprompterSettings: View {
     @ViewBuilder
     private var microphoneSpeechCard: some View {
         SettingsCard(title: "Microphone & Speech") {
-            HStack {
-                Text("Input Microphone")
-                Spacer()
+            SettingsRow(
+                symbol: "mic",
+                title: "Input Microphone",
+                caption: "Audio source for speech recognition & voice-guided scrolling"
+            ) {
                 Picker("", selection: $service.selectedMicUID) {
                     Text("System Default").tag("")
                     ForEach(inputDevices) { dev in
@@ -485,15 +542,17 @@ struct TeleprompterSettings: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .frame(width: 200)
+                .frame(width: 180)
                 .onChange(of: service.selectedMicUID) {
                     service.savePreferences()
                 }
             }
 
-            HStack {
-                Text("Speech Language")
-                Spacer()
+            SettingsRow(
+                symbol: "globe",
+                title: "Speech Language",
+                caption: "Language locale for on-device Apple Speech recognition"
+            ) {
                 Picker("", selection: $service.speechLocale) {
                     ForEach(SpeechLocaleSupport.supportedLocales, id: \.identifier) { loc in
                         Text(Locale.current.localizedString(forIdentifier: loc.identifier) ?? loc.identifier)
@@ -501,7 +560,7 @@ struct TeleprompterSettings: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .frame(width: 200)
+                .frame(width: 180)
                 .onChange(of: service.speechLocale) {
                     service.savePreferences()
                 }
@@ -514,14 +573,16 @@ struct TeleprompterSettings: View {
     @ViewBuilder
     private var importScriptCard: some View {
         SettingsCard(title: "Import Script & Slides") {
-            Text("Import slides and presenter notes directly from a PowerPoint (.pptx) file.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Button("Import PowerPoint (.pptx)...") {
-                chooseAndImportPPTX()
+            SettingsRow(
+                symbol: "doc.badge.plus",
+                title: "PowerPoint Presentation",
+                caption: "Import slides and presenter speaker notes from a .pptx file"
+            ) {
+                Button("Import .pptx...") {
+                    chooseAndImportPPTX()
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.bordered)
         }
     }
 
@@ -535,80 +596,100 @@ struct TeleprompterSettings: View {
                 Text("Director Studio (Live Production)").tag(1)
             }
             .pickerStyle(.segmented)
+            .padding(.bottom, 4)
 
             if selectedRemoteTab == 0 {
                 // Viewer Remote
-                Toggle("Enable Browser Remote", isOn: $service.remoteServerEnabled)
-                    .onChange(of: service.remoteServerEnabled) { _, enabled in
-                        service.savePreferences()
-                        if enabled {
-                            service.remoteServer.start()
-                        } else {
-                            service.remoteServer.stop()
+                SettingsRow(
+                    symbol: "iphone.and.arrow.forward",
+                    title: "Browser Remote Control",
+                    caption: "Control scroll speed and pagination from any mobile or desktop browser"
+                ) {
+                    Toggle("", isOn: $service.remoteServerEnabled)
+                        .toggleStyle(.switch)
+                        .onChange(of: service.remoteServerEnabled) { _, enabled in
+                            service.savePreferences()
+                            if enabled {
+                                service.remoteServer.start()
+                            } else {
+                                service.remoteServer.stop()
+                            }
                         }
-                    }
+                }
 
                 if service.remoteServerEnabled {
                     let ip = TeleprompterServer.localIPAddress() ?? "localhost"
                     let urlStr = "http://\(ip):\(service.remoteServer.httpPort)"
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Open in any phone, tablet, or secondary computer browser:")
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Connect using any browser on the local Wi-Fi network:")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .padding(.leading, settingsRowTextInset)
 
-                        HStack {
+                        HStack(spacing: 8) {
                             Text(urlStr)
                                 .font(.system(.body, design: .monospaced))
                                 .textSelection(.enabled)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
 
-                            Button("Copy") {
+                            Button("Copy Link") {
                                 NSPasteboard.general.clearContents()
                                 NSPasteboard.general.setString(urlStr, forType: .string)
                             }
                             .buttonStyle(.bordered)
                         }
+                        .padding(.leading, settingsRowTextInset)
 
                         if let qr = generateQRCode(from: urlStr) {
                             Image(nsImage: qr)
                                 .interpolation(.none)
                                 .resizable()
                                 .scaledToFit()
-                                .frame(width: 130, height: 130)
+                                .frame(width: 120, height: 120)
                                 .padding(8)
                                 .background(Color.white)
-                                .cornerRadius(12)
+                                .cornerRadius(10)
+                                .padding(.leading, settingsRowTextInset)
                         }
                     }
                     .padding(.top, 4)
                 }
             } else {
                 // Director Studio
-                Toggle("Enable Director Studio Server", isOn: $service.directorServerEnabled)
-                    .onChange(of: service.directorServerEnabled) { _, enabled in
-                        service.savePreferences()
-                        if enabled {
-                            service.directorServer.start()
-                        } else {
-                            service.directorServer.stop()
+                SettingsRow(
+                    symbol: "person.badge.shield.checkmark",
+                    title: "Director Studio Server",
+                    caption: "Live script editing, remote prompting, and multi-client cueing"
+                ) {
+                    Toggle("", isOn: $service.directorServerEnabled)
+                        .toggleStyle(.switch)
+                        .onChange(of: service.directorServerEnabled) { _, enabled in
+                            service.savePreferences()
+                            if enabled {
+                                service.directorServer.start()
+                            } else {
+                                service.directorServer.stop()
+                            }
                         }
-                    }
-
-                Text("Allows a remote director to view the live transcript, advance pages, and edit the presenter's script in real time from a phone or laptop.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                }
 
                 if service.directorServerEnabled {
                     let ip = TeleprompterServer.localIPAddress() ?? "localhost"
                     let urlStr = "http://\(ip):\(service.directorServer.httpPort)"
 
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
                         HStack {
                             Text(urlStr)
                                 .font(.system(.body, design: .monospaced))
                                 .textSelection(.enabled)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
 
-                            Button("Copy") {
+                            Button("Copy Link") {
                                 NSPasteboard.general.clearContents()
                                 NSPasteboard.general.setString(urlStr, forType: .string)
                             }
@@ -616,20 +697,27 @@ struct TeleprompterSettings: View {
 
                             Spacer()
 
-                            Text("\(service.directorServer.connectedClients) connected")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(service.directorServer.connectedClients > 0 ? Color.green : Color.orange)
+                                    .frame(width: 8, height: 8)
+                                Text("\(service.directorServer.connectedClients) connected")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
+                        .padding(.leading, settingsRowTextInset)
 
                         if let qr = generateQRCode(from: urlStr) {
                             Image(nsImage: qr)
                                 .interpolation(.none)
                                 .resizable()
                                 .scaledToFit()
-                                .frame(width: 130, height: 130)
+                                .frame(width: 120, height: 120)
                                 .padding(8)
                                 .background(Color.white)
-                                .cornerRadius(12)
+                                .cornerRadius(10)
+                                .padding(.leading, settingsRowTextInset)
                         }
                     }
                     .padding(.top, 4)
