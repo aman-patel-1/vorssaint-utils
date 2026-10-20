@@ -398,6 +398,7 @@ struct WordFlowLayout: View {
 
     @ViewBuilder
     private func wordView(for item: WordItem, isNextWord: Bool) -> some View {
+        let cueFont = Font(font.withSize(font.pointSize * 0.8)).italic()
         let wordLen = item.word.count
         let charsIntoWord = highlightedCharCount - item.charOffset
         let litCount = max(0, min(wordLen, charsIntoWord))
@@ -411,7 +412,7 @@ struct WordFlowLayout: View {
                 : highlightColor
 
             Text(item.word + " ")
-                .font(item.isAnnotation ? Font(font).italic() : Font(font))
+                .font(item.isAnnotation ? cueFont : Font(font))
                 .foregroundStyle(uniformColor)
                 .background(
                     GeometryReader { wordGeo in
@@ -431,7 +432,7 @@ struct WordFlowLayout: View {
                 : cueColor.opacity(cueUnreadOpacity)
 
             Text(item.word + " ")
-                .font(Font(font).italic())
+                .font(cueFont)
                 .foregroundStyle(annotationColor)
                 .background(
                     GeometryReader { wordGeo in

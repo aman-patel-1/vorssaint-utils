@@ -3,6 +3,7 @@
 // Based on Textream by Fatih Kadir Akın (MIT License)
 
 import AppKit
+import Combine
 import CoreImage.CIFilterBuiltins
 import Speech
 import SwiftUI
@@ -11,6 +12,24 @@ import SwiftUI
 
 private func triggerHaptic() {
     NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+}
+
+private struct TeleprompterPreviewSettingsSnapshot: Equatable {
+    let values: [String]
+
+    init(_ service: TeleprompterService) {
+        values = [
+            service.fontFamily.rawValue, service.fontSize.rawValue,
+            service.highlightColor.rawValue, service.cueColor.rawValue, service.cueBrightness.rawValue,
+            service.guidanceMode.rawValue, String(service.scrollSpeed),
+            service.readingPosition.rawValue, String(service.showParagraphDividers),
+            String(service.showLastSpokenWords), String(service.windowWidth), String(service.windowHeight),
+            service.overlayMode.rawValue, service.displayTargetMode.rawValue,
+            String(service.overlayTransparency), String(service.showElapsedTime),
+            String(service.autoNextPage), service.externalDisplayMode.rawValue,
+            service.externalMirrorAxis.rawValue
+        ]
+    }
 }
 
 // MARK: - Inline Info / Tooltip Badge
@@ -256,6 +275,7 @@ struct TeleprompterSettings: View {
     @State private var showingImportError = false
     @State private var importErrorMessage: String? = nil
     @State private var importAlertTitle = "Import Failed"
+    @State private var lastPreviewSettings: TeleprompterPreviewSettingsSnapshot?
 
     private var strings: TeleprompterStrings {
         FeatureStrings.teleprompter(l10n.language)
@@ -408,13 +428,16 @@ struct TeleprompterSettings: View {
                     service.savePreferences()
                 }
 
-                Button {
-                    service.previewInNotch()
-                    triggerHaptic()
-                } label: {
-                    Label("Preview in Notch", systemImage: "rectangle.topthird.inset.filled")
+                HStack {
+                    Spacer()
+                    Button {
+                        service.previewInNotch()
+                        triggerHaptic()
+                    } label: {
+                        Label("Preview in Notch", systemImage: "rectangle.topthird.inset.filled")
+                    }
+                    .help("Show a live sample in the notch using the current appearance settings. This does not start speech recognition or a teleprompter session.")
                 }
-                .help("Show a live sample in the notch using the current appearance settings. This does not start speech recognition or a teleprompter session.")
             } header: {
                 Text("Appearance")
             }
@@ -742,9 +765,17 @@ struct TeleprompterSettings: View {
         }
         .formStyle(.grouped)
         .onAppear {
+            lastPreviewSettings = TeleprompterPreviewSettingsSnapshot(service)
             inputDevices = AudioInputDevice.allInputDevices()
             openRequestedNewPageIfNeeded()
             openRequestedEditPageIfNeeded()
+        }
+        .onReceive(service.objectWillChange.debounce(for: .milliseconds(80), scheduler: RunLoop.main)) { _ in
+            let snapshot = TeleprompterPreviewSettingsSnapshot(service)
+            guard snapshot != lastPreviewSettings else { return }
+            lastPreviewSettings = snapshot
+            guard !service.isRunning else { return }
+            service.previewInNotch(autoCloseAfter: 4)
         }
         .onChange(of: service.pendingAddPageInSettings) { _, requested in
             if requested { openRequestedNewPageIfNeeded() }

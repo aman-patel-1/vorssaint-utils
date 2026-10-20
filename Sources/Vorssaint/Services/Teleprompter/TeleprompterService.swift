@@ -91,6 +91,7 @@ final class TeleprompterService: ObservableObject {
     private let hotkey = QuickToolHotkey(id: 90)
     private var sleepAssertionID: IOPMAssertionID = 0
     private var elapsedTimer: Timer?
+    private var notchPreviewIdleTask: Task<Void, Never>?
     private var restartSpeechOnResume = false
 
     @Published var sessionStartTime: Date? = nil
@@ -453,16 +454,33 @@ final class TeleprompterService: ObservableObject {
         }
     }
 
-    func previewInNotch() {
+    func previewInNotch(autoCloseAfter inactivityInterval: TimeInterval? = nil) {
         guard !isRunning else {
             NotchService.shared.open(.teleprompter)
             return
         }
         isPreviewingInNotch = true
         NotchService.shared.open(.teleprompter)
+
+        notchPreviewIdleTask?.cancel()
+        guard let inactivityInterval else { return }
+        notchPreviewIdleTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: UInt64(max(0, inactivityInterval) * 1_000_000_000))
+            } catch {
+                return
+            }
+            guard let self, self.isPreviewingInNotch, !self.isRunning else { return }
+            self.endNotchPreview()
+            if NotchService.shared.selected == .teleprompter {
+                NotchService.shared.backFromTeleprompter()
+            }
+        }
     }
 
     func endNotchPreview() {
+        notchPreviewIdleTask?.cancel()
+        notchPreviewIdleTask = nil
         isPreviewingInNotch = false
     }
 
@@ -489,7 +507,7 @@ final class TeleprompterService: ObservableObject {
 
     func start() {
         guard !isRunning else { return }
-        isPreviewingInNotch = false
+        endNotchPreview()
         isRunning = true
         isPaused = false
         restartSpeechOnResume = false
@@ -597,7 +615,7 @@ final class TeleprompterService: ObservableObject {
     }
 
     func stop() {
-        isPreviewingInNotch = false
+        endNotchPreview()
         isRunning = false
         isPaused = false
         restartSpeechOnResume = false
