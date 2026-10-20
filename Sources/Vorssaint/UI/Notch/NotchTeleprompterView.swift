@@ -20,19 +20,6 @@ struct NotchTeleprompterView: View {
         return service.pages
     }
 
-    private var totalWords: Int {
-        pagesList.reduce(0) { $0 + splitTextIntoWords($1).count }
-    }
-
-    private var totalEstimatedReadingTimeText: String {
-        let words = totalWords
-        guard words > 0 else { return "0s" }
-        let seconds = Int(Double(words) / 130.0 * 60.0)
-        let mins = seconds / 60
-        let remSecs = seconds % 60
-        return mins > 0 ? "~\(mins)m \(remSecs)s" : "~\(remSecs)s"
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             if service.isRunning && !showingPageCards {
@@ -40,44 +27,50 @@ struct NotchTeleprompterView: View {
             } else {
                 pageCardsStudioView
             }
-
-            // Vertical Resize Handle
-            VStack(spacing: 0) {
-                Spacer().frame(height: 2)
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.white.opacity(0.35))
-                    .frame(width: 36, height: 4)
-                Spacer().frame(height: 4)
-            }
-            .frame(height: 10)
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 2, coordinateSpace: .global)
-                    .onChanged { value in
-                        if dragStartHeight < 0 {
-                            dragStartHeight = Double(service.windowHeight)
-                        }
-                        let newHeight = dragStartHeight + Double(value.translation.height)
-                        service.windowHeight = max(180, min(650, newHeight))
-                    }
-                    .onEnded { _ in
-                        dragStartHeight = -1
-                        service.savePreferences()
-                    }
-            )
-            .onHover { hovering in
-                if hovering {
-                    NSCursor.resizeUpDown.push()
-                } else {
-                    NSCursor.pop()
-                }
-            }
+            if service.isRunning { resizeHandle }
         }
         .frame(width: size.width, height: size.height, alignment: .top)
         .notchBand(trailing: {
-            if !service.isRunning || showingPageCards { addPageButton }
+            HStack(spacing: 6) {
+                if service.isRunning && service.showElapsedTime { elapsedTimeBadge }
+                if !service.isRunning || showingPageCards { addPageButton }
+                NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: NotchService.shared.toggleSections)
+            }
         })
+    }
+
+    private var resizeHandle: some View {
+        VStack(spacing: 0) {
+            Spacer().frame(height: 2)
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Color.white.opacity(0.35))
+                .frame(width: 36, height: 4)
+            Spacer().frame(height: 4)
+        }
+        .frame(height: 10)
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 2, coordinateSpace: .global)
+                .onChanged { value in
+                    if dragStartHeight < 0 {
+                        dragStartHeight = Double(service.windowHeight)
+                    }
+                    let newHeight = dragStartHeight + Double(value.translation.height)
+                    service.windowHeight = max(180, min(650, newHeight))
+                }
+                .onEnded { _ in
+                    dragStartHeight = -1
+                    service.savePreferences()
+                }
+        )
+        .onHover { hovering in
+            if hovering {
+                NSCursor.resizeUpDown.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
     }
 
     // MARK: - 1. Page Cards Studio View (When stopped or toggled)
@@ -98,42 +91,22 @@ struct NotchTeleprompterView: View {
 
                 Spacer()
 
-                // Timer & Word Summary on Right Side
-                HStack(spacing: 12) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock")
-                            .font(.system(size: 10))
-                        Text(totalEstimatedReadingTimeText)
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    }
-                    .foregroundStyle(.white.opacity(0.75))
-
-                    HStack(spacing: 4) {
-                        Image(systemName: "text.word.spacing")
-                            .font(.system(size: 10))
-                        Text("\(totalWords)w")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundStyle(.white.opacity(0.6))
-
-                    // If currently running in background, allow jumping back to live view
-                    if service.isRunning {
-                        Button {
-                            showingPageCards = false
-                        } label: {
-                            HStack(spacing: 4) {
-                                Circle().fill(Color.green).frame(width: 6, height: 6)
-                                Text("Live")
-                                    .font(.system(size: 11, weight: .semibold))
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Color.green.opacity(0.2))
-                            .clipShape(Capsule())
+                // If currently running in background, allow jumping back to live view.
+                if service.isRunning {
+                    Button {
+                        showingPageCards = false
+                    } label: {
+                        HStack(spacing: 4) {
+                            Circle().fill(Color.green).frame(width: 6, height: 6)
+                            Text("Live")
+                                .font(.system(size: 11, weight: .semibold))
                         }
-                        .buttonStyle(.plain)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.green.opacity(0.2))
+                        .clipShape(Capsule())
                     }
-
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 16)
@@ -156,42 +129,33 @@ struct NotchTeleprompterView: View {
 
     private func pageCard(index: Int, content: String) -> some View {
         let isSelected = index == service.currentPageIndex
-        let words = splitTextIntoWords(content).count
-        let seconds = Int(Double(words) / 130.0 * 60.0)
-        let mins = seconds / 60
-        let remSecs = seconds % 60
-        let timeStr = mins > 0 ? "~\(mins)m \(remSecs)s" : "~\(remSecs)s"
         let snippet = previewSnippet(content)
 
         return HStack(spacing: 12) {
-            // Click card body to select page
             Button {
                 service.jumpToPage(index: index)
                 triggerHaptic()
             } label: {
-                HStack(alignment: .top, spacing: 10) {
-                    Circle()
-                        .fill(isSelected ? service.highlightColor.color : Color.white.opacity(0.25))
-                        .frame(width: 8, height: 8)
-                        .padding(.top, 5)
+                HStack(spacing: 10) {
+                    Text(String(format: "%02d", index + 1))
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(isSelected ? service.highlightColor.color : .white.opacity(0.55))
+                        .frame(width: 34, height: 34)
+                        .background(isSelected ? service.highlightColor.color.opacity(0.16) : Color.white.opacity(0.07),
+                                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 8) {
-                            Text("Page \(index + 1)")
-                                .font(.system(size: 13, weight: isSelected ? .bold : .semibold))
-                                .foregroundStyle(isSelected ? .white : .white.opacity(0.85))
-
-                            Text("\(words) words • \(timeStr)")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.white.opacity(0.55))
-                        }
-
+                        Text("Page \(index + 1)")
+                            .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                            .foregroundStyle(.white.opacity(isSelected ? 0.95 : 0.8))
                         Text(snippet.isEmpty ? "Empty page" : snippet)
                             .font(.system(size: 11))
-                            .foregroundStyle(.white.opacity(0.65))
+                            .foregroundStyle(.white.opacity(0.55))
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -243,12 +207,8 @@ struct NotchTeleprompterView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(isSelected ? service.highlightColor.color.opacity(0.4) : Color.white.opacity(0.08), lineWidth: 1)
+                .strokeBorder(isSelected ? service.highlightColor.color.opacity(0.38) : Color.white.opacity(0.07), lineWidth: 1)
         )
-        .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            openEditor(for: index)
-        }
     }
 
     // MARK: - 2. Active Prompter View (While speaking/scrolling)
@@ -307,17 +267,6 @@ struct NotchTeleprompterView: View {
                 }
 
                 Spacer()
-
-                // Stopwatch Elapsed Time on Right Side
-                if service.showElapsedTime && service.isRunning {
-                    HStack(spacing: 4) {
-                        Image(systemName: "stopwatch")
-                            .font(.system(size: 9))
-                        Text(service.formattedElapsedTime)
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    }
-                    .foregroundStyle(.white.opacity(0.85))
-                }
 
                 // Page indicator
                 if pagesList.count > 1 {
@@ -425,10 +374,6 @@ struct NotchTeleprompterView: View {
                     .disabled(service.currentPageIndex >= pagesList.count - 1)
                 }
 
-                Text("\(service.totalWordCount) words")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.white.opacity(0.5))
-
                 Spacer()
 
                 if let err = recognizer.error {
@@ -474,6 +419,25 @@ struct NotchTeleprompterView: View {
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: NotchLayout.timerStartHeight / 2))
         .help("Add New Page")
+    }
+
+    /// The elapsed reading takes the page action's top-row position while
+    /// running, and follows the user's elapsed-time preference.
+    private var elapsedTimeBadge: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "stopwatch")
+                .font(.system(size: 11, weight: .medium))
+            Text(service.formattedElapsedTime)
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .monospacedDigit()
+        }
+        .foregroundStyle(service.highlightColor.color)
+        .padding(.horizontal, NotchTimerSupport.StartButton.padding)
+        .frame(height: NotchLayout.timerStartHeight)
+        .background(service.highlightColor.color.opacity(0.18), in: Capsule())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(FeatureStrings.notchActivities(l10n.language).stopwatch)
+        .accessibilityValue(service.formattedElapsedTime)
     }
 
     private func previewSnippet(_ text: String) -> String {
