@@ -21,6 +21,8 @@ final class TeleprompterFloatingWindowController: NSWindowController {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
+        panel.sharingType = .none
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.minSize = NSSize(width: 280, height: 140)
 
         panel.contentView = NSHostingView(rootView: TeleprompterFloatingContentView())

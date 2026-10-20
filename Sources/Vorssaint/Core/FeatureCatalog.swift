@@ -581,7 +581,7 @@ extension AppFeature {
             case (.screenRecorder, .microphone):
                 return boolFor(DefaultsKey.recorderMicrophone)
             case (.teleprompter, .microphone):
-                return false
+                return boolFor(DefaultsKey.teleprompterEnabled)
             default:
                 return true
             }
