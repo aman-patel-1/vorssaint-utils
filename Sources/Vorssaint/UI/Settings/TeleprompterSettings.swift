@@ -318,7 +318,10 @@ struct TeleprompterSettings: View {
                             }
                         }
                     }
+                    // Keep the overlay scrollbar clear of the trailing page
+                    // action buttons and their circular hit targets.
                     .padding(.vertical, 2)
+                    .padding(.trailing, 16)
                 }
                 .frame(height: min(CGFloat(pagesList.count) * 36, 252))
 
@@ -1032,12 +1035,14 @@ struct TeleprompterSettings: View {
 
 // MARK: - Dedicated Page Editor Window Controller (Modal Sheet)
 
-final class PageEditorWindowController: NSObject {
+@MainActor
+final class PageEditorWindowController: NSObject, ObservableObject {
     static let shared = PageEditorWindowController()
 
     private var currentSheet: NSWindow?
     private var isDismissing: Bool = false
     private var isExpanded: Bool = false
+    @Published private(set) var isShowing = false
 
     func toggleZoom() {
         guard let panel = currentSheet else { return }
@@ -1067,7 +1072,12 @@ final class PageEditorWindowController: NSObject {
         guard !isDismissing else { return }
         isExpanded = false
 
-        let parentWindow = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: { $0.isVisible && !$0.isMiniaturized })
+        // Never attach an editor sheet to the notch or the floating prompter.
+        // Doing so stacks interactive notch controls under the dialog and can
+        // make clicks intended for the editor activate those controls.
+        let parentWindow = NSApp.windows.first(where: {
+            $0.isVisible && !$0.isMiniaturized && !($0 is NSPanel) && $0.level == .normal
+        })
 
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 660, height: 520),
@@ -1097,6 +1107,7 @@ final class PageEditorWindowController: NSObject {
                     panel?.orderOut(nil)
                 }
                 self.currentSheet = nil
+                self.isShowing = false
                 self.isDismissing = false
                 onCancel()
             },
@@ -1109,6 +1120,7 @@ final class PageEditorWindowController: NSObject {
                     panel?.orderOut(nil)
                 }
                 self.currentSheet = nil
+                self.isShowing = false
                 self.isDismissing = false
                 onDone(newText)
             }
@@ -1117,6 +1129,7 @@ final class PageEditorWindowController: NSObject {
 
         panel.contentView = NSHostingView(rootView: contentView)
         self.currentSheet = panel
+        self.isShowing = true
 
         if let parent = parentWindow {
             parent.beginSheet(panel)
@@ -1430,11 +1443,12 @@ struct PageEditorDialog: View {
     private func insertCue(_ cue: String) {
         let tag = "[\(cue)]"
         let source = text as NSString
-        let caret = min(max(0, editorCaretPosition), source.length)
+        // The Cue menu takes focus from NSTextView, so its last reported caret
+        // can be stale. Append cues to the script in order instead of inserting
+        // them into an earlier word when a second cue is chosen.
+        let caret = source.length
         let needsLeadingSpace = caret > 0 && source.character(at: caret - 1) != 0x20 && source.character(at: caret - 1) != 0x0A
-        let needsTrailingSpace = caret < source.length && source.character(at: caret) != 0x20 && source.character(at: caret) != 0x0A
-
-        let toInsert = (needsLeadingSpace ? " " : "") + tag + (needsTrailingSpace ? " " : "")
+        let toInsert = (needsLeadingSpace ? " " : "") + tag + " "
         let updated = source.mutableCopy() as! NSMutableString
         updated.insert(toInsert, at: caret)
         text = updated as String

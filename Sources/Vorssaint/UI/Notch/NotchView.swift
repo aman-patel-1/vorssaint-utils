@@ -11,6 +11,7 @@ struct NotchView: View {
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var updates = UpdateService.shared
     @ObservedObject private var teleprompter = TeleprompterService.shared
+    @ObservedObject private var pageEditor = PageEditorWindowController.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -61,6 +62,10 @@ struct NotchView: View {
             .environment(\.notchPresentation, true)
             .environment(\.notchGlassSurface, usesGlassSurface)
             .tint(.white)
+            // The page editor is a separate modal window. Keep the running
+            // island visible beneath it, but do not let clicks pass through to
+            // pause, timer, music, or other notch controls.
+            .allowsHitTesting(!pageEditor.isShowing)
             .accessibilityIdentifier("notch.surface")
     }
 

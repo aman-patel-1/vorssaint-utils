@@ -182,17 +182,6 @@ struct TeleprompterFloatingContentView: View {
                     .lineLimit(1)
             }
 
-            if pageCount > 1 {
-                Text("\(service.currentPageIndex + 1) / \(pageCount)")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .monospacedDigit()
-                    .foregroundStyle(.white.opacity(0.75))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(Color.white.opacity(0.1), in: Capsule())
-                    .accessibilityLabel("Page \(service.currentPageIndex + 1) of \(pageCount)")
-            }
-
             Spacer(minLength: 4)
 
             if service.showElapsedTime && service.isRunning {
@@ -233,7 +222,7 @@ struct TeleprompterFloatingContentView: View {
 
             Spacer(minLength: 4)
 
-            if pageCount > 1 {
+            if service.autoNextPage && pageCount > 1 {
                 Button {
                     service.previousPage()
                 } label: {

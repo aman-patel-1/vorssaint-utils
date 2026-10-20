@@ -217,6 +217,8 @@ final class NotchService: ObservableObject {
     /// opened on, from the menu bar for instance, has nothing behind it and
     /// closes like the menu panel.
     private var detailHasPage = false
+    private var teleprompterCameFromSections = false
+    private var teleprompterPreviousModule: NotchModule?
     /// What a page shows over its own content, such as the mixer's options or
     /// the month grid, and how to close it; Escape closes it before the page.
     private var pageLayers: [NotchModule: () -> Void] = [:]
@@ -1419,6 +1421,10 @@ final class NotchService: ObservableObject {
         let closesCommandBar = showingCommandBar
         let changesPresentation = !expanded || selected != destination || closesCommandBar
             || showingAppPanel != appPanel || selectedMetric != metric || showingSections != sections
+        if changesPresentation, destination == .teleprompter {
+            teleprompterCameFromSections = showingSections
+            teleprompterPreviousModule = showingSections ? nil : selected
+        }
         if changesPresentation, destination == .tools, !appPanel, !sections, metric == nil {
             QuickLauncherService.shared.prepareForPresentation()
         }
@@ -1754,6 +1760,24 @@ final class NotchService: ObservableObject {
             sectionRow = 0
             highlightedSection = selected
             open(appPanel: showingAppPanel, metric: selectedMetric, sections: true)
+        }
+    }
+
+    /// Return from the teleprompter to the surface it was opened from. When
+    /// it came from Explore, keep the gallery open; when it replaced another
+    /// page, restore that page instead of jumping to a default destination.
+    func backFromTeleprompter() {
+        guard selected == .teleprompter else { toggleSections(); return }
+        if teleprompterCameFromSections {
+            teleprompterCameFromSections = false
+            teleprompterPreviousModule = nil
+            toggleSections()
+        } else if let previous = teleprompterPreviousModule, modules.contains(previous) {
+            teleprompterCameFromSections = false
+            teleprompterPreviousModule = nil
+            open(previous)
+        } else {
+            toggleSections()
         }
     }
 

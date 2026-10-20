@@ -32,7 +32,7 @@ struct NotchTeleprompterView: View {
         .frame(width: size.width, height: size.height, alignment: .top)
         .notchBand(leading: {
             HStack(spacing: 7) {
-                NotchIconButton(symbol: "arrow.uturn.backward", title: l10n.s.obBack, action: NotchService.shared.toggleSections)
+                NotchIconButton(symbol: "arrow.uturn.backward", title: l10n.s.obBack, action: NotchService.shared.backFromTeleprompter)
                 Text(service.isRunning ? String(format: "%.1fx", service.scrollSpeed) : "Script Pages")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.65))
@@ -264,7 +264,7 @@ struct NotchTeleprompterView: View {
                     liveWaveform
                 }
 
-                if pagesList.count > 1 {
+                if service.autoNextPage && pagesList.count > 1 {
                     Button {
                         service.previousPage()
                     } label: {
