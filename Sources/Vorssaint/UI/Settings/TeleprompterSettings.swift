@@ -140,6 +140,7 @@ struct PageActionMenuButton: NSViewRepresentable {
     let onDuplicate: () -> Void
     let onDelete: () -> Void
     let canDelete: Bool
+    let canDuplicate: Bool
 
     func makeNSView(context: Context) -> NSButton {
         let button = NSButton()
@@ -159,10 +160,12 @@ struct PageActionMenuButton: NSViewRepresentable {
         context.coordinator.onDuplicate = onDuplicate
         context.coordinator.onDelete = onDelete
         context.coordinator.canDelete = canDelete
+        context.coordinator.canDuplicate = canDuplicate
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onEdit: onEdit, onDuplicate: onDuplicate, onDelete: onDelete, canDelete: canDelete)
+        Coordinator(onEdit: onEdit, onDuplicate: onDuplicate, onDelete: onDelete,
+                    canDelete: canDelete, canDuplicate: canDuplicate)
     }
 
     final class Coordinator: NSObject {
@@ -170,12 +173,15 @@ struct PageActionMenuButton: NSViewRepresentable {
         var onDuplicate: () -> Void
         var onDelete: () -> Void
         var canDelete: Bool
+        var canDuplicate: Bool
 
-        init(onEdit: @escaping () -> Void, onDuplicate: @escaping () -> Void, onDelete: @escaping () -> Void, canDelete: Bool) {
+        init(onEdit: @escaping () -> Void, onDuplicate: @escaping () -> Void, onDelete: @escaping () -> Void,
+             canDelete: Bool, canDuplicate: Bool) {
             self.onEdit = onEdit
             self.onDuplicate = onDuplicate
             self.onDelete = onDelete
             self.canDelete = canDelete
+            self.canDuplicate = canDuplicate
         }
 
         @objc func showMenu(_ sender: NSButton) {
@@ -195,6 +201,7 @@ struct PageActionMenuButton: NSViewRepresentable {
                 img.isTemplate = true
                 dupItem.image = img
             }
+            dupItem.isEnabled = canDuplicate
             menu.addItem(dupItem)
 
             menu.addItem(NSMenuItem.separator())
@@ -236,6 +243,7 @@ struct TeleprompterSettings: View {
     @State private var confirmingReset = false
     @State private var showingImportError = false
     @State private var importErrorMessage: String? = nil
+    @State private var importAlertTitle = "Import Failed"
 
     private var strings: TeleprompterStrings {
         FeatureStrings.teleprompter(l10n.language)
@@ -298,6 +306,8 @@ struct TeleprompterSettings: View {
                     } label: {
                         Label("Add Page", systemImage: "plus")
                     }
+                    .disabled(pagesList.count >= TeleprompterService.maximumPageCount)
+                    .help("A teleprompter can contain up to \(TeleprompterService.maximumPageCount) pages.")
 
                     Button {
                         chooseAndImportPPTX()
@@ -307,28 +317,14 @@ struct TeleprompterSettings: View {
 
                     Spacer()
 
-                    // Right-aligned start prompter controls in the second row
-                    HStack(spacing: 8) {
-                        Button {
-                            service.toggle()
-                        } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: service.isRunning && !service.isPaused ? "pause.fill" : "play.fill")
-                                Text(service.isRunning && !service.isPaused ? strings.pause : (service.isRunning ? strings.resume : strings.start))
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(service.isRunning && !service.isPaused ? .orange : .accentColor)
-
-                        if service.isRunning {
-                            Button {
-                                service.stop()
-                            } label: {
-                                Label(strings.stop, systemImage: "stop.fill")
-                            }
-                            .buttonStyle(.bordered)
-                        }
+                    Button {
+                        NotchService.shared.open(.teleprompter, pinned: true)
+                        triggerHaptic()
+                    } label: {
+                        Label("Open Prompter", systemImage: "arrow.up.forward.square")
                     }
+                    .buttonStyle(.borderedProminent)
+                    .help("Open the Notch menu to choose a page and control the prompter.")
                 }
                 .padding(.top, 4)
             } header: {
@@ -341,6 +337,11 @@ struct TeleprompterSettings: View {
                             .font(.caption)
                             .onChange(of: service.autoNextPage) { _, _ in service.savePreferences() }
                     }
+                }
+                if pagesList.count >= TeleprompterService.maximumPageCount {
+                    Text("Maximum \(TeleprompterService.maximumPageCount) pages")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .disabled(!teleprompterEnabled)
@@ -735,7 +736,7 @@ struct TeleprompterSettings: View {
         } message: {
             Text("Are you sure you want to delete this page? This action cannot be undone.")
         }
-        .alert("Import Failed", isPresented: $showingImportError) {
+        .alert(importAlertTitle, isPresented: $showingImportError) {
             Button("OK") { }
         } message: {
             Text(importErrorMessage ?? "Could not extract presenter notes.")
@@ -779,7 +780,8 @@ struct TeleprompterSettings: View {
                 onEdit: { openPageEditor(index: index) },
                 onDuplicate: { duplicatePage(at: index) },
                 onDelete: { pageToDelete = index },
-                canDelete: pagesList.count > 1
+                canDelete: pagesList.count > 1,
+                canDuplicate: pagesList.count < TeleprompterService.maximumPageCount
             )
             .frame(width: 18, height: 18)
         }
@@ -835,6 +837,7 @@ struct TeleprompterSettings: View {
     }
 
     private func addNewPage() {
+        guard pagesList.count < TeleprompterService.maximumPageCount else { return }
         service.addPage()
         let newIdx = max(0, service.pages.count - 1)
         editingPageIndex = newIdx
@@ -859,7 +862,7 @@ struct TeleprompterSettings: View {
     }
 
     private func duplicatePage(at index: Int) {
-        guard index < pagesList.count else { return }
+        guard index < pagesList.count, pagesList.count < TeleprompterService.maximumPageCount else { return }
         if service.pages.isEmpty {
             service.pages = [service.text]
         }
@@ -975,9 +978,15 @@ struct TeleprompterSettings: View {
 
         if panel.runModal() == .OK, let url = panel.url {
             do {
-                try service.importPPTX(url: url)
+                let omittedPages = try service.importPPTX(url: url)
                 triggerHaptic()
+                if omittedPages > 0 {
+                    importAlertTitle = "Import Notice"
+                    importErrorMessage = "Only the first \(TeleprompterService.maximumPageCount) pages were imported to keep the Notch and Settings layouts readable. \(omittedPages) pages were skipped."
+                    showingImportError = true
+                }
             } catch {
+                importAlertTitle = "Import Failed"
                 importErrorMessage = error.localizedDescription
                 showingImportError = true
             }

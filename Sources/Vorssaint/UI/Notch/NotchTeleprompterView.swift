@@ -420,7 +420,10 @@ struct NotchTeleprompterView: View {
             .contentShape(Capsule())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: NotchLayout.timerStartHeight / 2))
-        .help("Add New Page")
+        .disabled(pagesList.count >= TeleprompterService.maximumPageCount)
+        .help(pagesList.count >= TeleprompterService.maximumPageCount
+              ? "Maximum of \(TeleprompterService.maximumPageCount) pages reached"
+              : "Add New Page")
     }
 
     /// The elapsed reading takes the page action's top-row position while
@@ -479,6 +482,7 @@ struct NotchTeleprompterView: View {
     }
 
     private func addNewPage() {
+        guard pagesList.count < TeleprompterService.maximumPageCount else { return }
         if service.pages.isEmpty {
             service.pages = [service.text]
         }

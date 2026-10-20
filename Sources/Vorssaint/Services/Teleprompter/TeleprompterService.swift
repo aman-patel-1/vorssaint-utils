@@ -11,6 +11,7 @@ import SwiftUI
 @MainActor
 final class TeleprompterService: ObservableObject {
     static let shared = TeleprompterService()
+    static let maximumPageCount = 12
 
     @Published var isRunning: Bool = false
     @Published var isPaused: Bool = false
@@ -159,11 +160,13 @@ final class TeleprompterService: ObservableObject {
 
     private func loadPreferences() {
         let defaults = UserDefaults.standard
+        var didTrimSavedPages = false
         if let savedText = defaults.string(forKey: DefaultsKey.teleprompterScriptText), !savedText.isEmpty {
             text = savedText
         }
         if let savedPages = defaults.stringArray(forKey: DefaultsKey.teleprompterPages), !savedPages.isEmpty {
-            pages = savedPages
+            pages = Array(savedPages.prefix(Self.maximumPageCount))
+            didTrimSavedPages = savedPages.count > Self.maximumPageCount
         }
         currentPageIndex = max(0, min(pages.isEmpty ? 0 : pages.count - 1, defaults.integer(forKey: DefaultsKey.teleprompterCurrentPageIndex)))
 
@@ -248,6 +251,7 @@ final class TeleprompterService: ObservableObject {
             externalMirrorAxis = ma
         }
         externalScreenID = UInt32(defaults.integer(forKey: DefaultsKey.teleprompterExternalScreenID))
+        if didTrimSavedPages { savePreferences() }
     }
 
     func savePreferences() {
@@ -390,9 +394,11 @@ final class TeleprompterService: ObservableObject {
 
     func addPage() {
         if pages.isEmpty {
+            guard Self.maximumPageCount >= 2 else { return }
             pages = [text, ""]
             currentPageIndex = 1
         } else {
+            guard pages.count < Self.maximumPageCount else { return }
             pages.append("")
             currentPageIndex = pages.count - 1
         }
@@ -704,14 +710,15 @@ final class TeleprompterService: ObservableObject {
 
     // MARK: - Import Presentations
 
-    func importPPTX(url: URL) throws {
+    func importPPTX(url: URL) throws -> Int {
         let extracted = try PresentationNotesExtractor.extractNotes(from: url)
-        pages = extracted
+        pages = Array(extracted.prefix(Self.maximumPageCount))
         currentPageIndex = 0
         readPages.removeAll()
-        if let first = extracted.first {
+        if let first = pages.first {
             text = first
         }
         savePreferences()
+        return max(0, extracted.count - Self.maximumPageCount)
     }
 }
