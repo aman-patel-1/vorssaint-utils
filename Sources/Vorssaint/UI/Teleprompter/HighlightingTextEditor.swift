@@ -61,6 +61,8 @@ struct HighlightingTextEditor: NSViewRepresentable {
         if let cue = cueToInsert?.wrappedValue {
             let insertion = " [\(cue)] "
             textView.insertText(insertion, replacementRange: textView.selectedRange())
+            self.text = textView.string
+            context.coordinator.applyHighlighting(textView)
             DispatchQueue.main.async {
                 self.cueToInsert?.wrappedValue = nil
             }

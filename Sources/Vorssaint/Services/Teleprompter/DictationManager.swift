@@ -147,13 +147,14 @@ final class DictationManager: ObservableObject {
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
-        if recognizer.supportsOnDeviceRecognition {
-            request.requiresOnDeviceRecognition = true
-        }
+        request.taskHint = .dictation
 
         requestLock.lock()
         recognitionRequest = request
         requestLock.unlock()
+
+        let waveformFrameInterval = AVAudioFrameCount(max(1, captureFormat.sampleRate / 20.0))
+        var framesSinceWaveformUpdate = waveformFrameInterval
 
         inputNode.removeTap(onBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: captureFormat) { [weak self, requestLock] buffer, _ in
@@ -162,6 +163,10 @@ final class DictationManager: ObservableObject {
             let req = self.recognitionRequest
             requestLock.unlock()
             req?.append(buffer)
+
+            framesSinceWaveformUpdate &+= buffer.frameLength
+            guard framesSinceWaveformUpdate >= waveformFrameInterval else { return }
+            framesSinceWaveformUpdate %= waveformFrameInterval
 
             guard let channelData = buffer.floatChannelData?[0] else { return }
             let frameLength = Int(buffer.frameLength)
@@ -221,9 +226,7 @@ final class DictationManager: ObservableObject {
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
-        if recognizer.supportsOnDeviceRecognition {
-            request.requiresOnDeviceRecognition = true
-        }
+        request.taskHint = .dictation
 
         requestLock.lock()
         recognitionRequest = request

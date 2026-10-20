@@ -29,12 +29,14 @@ struct InfoTip: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .help(text)
         .popover(isPresented: $isShowing, arrowEdge: .trailing) {
             Text(text)
-                .font(.system(size: 12))
-                .padding(10)
-                .frame(maxWidth: 240)
+                .font(.system(size: 11))
+                .lineSpacing(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: 250)
+                .padding(12)
         }
     }
 }
@@ -118,14 +120,99 @@ struct DictationWaveformView: View {
     var color: Color = .red
 
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach(0..<min(24, levels.count), id: \.self) { idx in
+        HStack(alignment: .center, spacing: 2) {
+            ForEach(0..<min(20, levels.count), id: \.self) { idx in
                 RoundedRectangle(cornerRadius: 1)
                     .fill(color)
-                    .frame(width: 2.5, height: max(4, levels[idx] * 20))
+                    .frame(width: 2, height: max(3, levels[idx] * 16))
             }
         }
-        .frame(height: 20)
+        .frame(height: 16)
+    }
+}
+
+// MARK: - Native Page Action Menu with SF Symbol Icons
+
+struct PageActionMenuButton: NSViewRepresentable {
+    let onEdit: () -> Void
+    let onDuplicate: () -> Void
+    let onDelete: () -> Void
+    let canDelete: Bool
+
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton()
+        button.bezelStyle = .inline
+        button.isBordered = false
+        button.image = NSImage(systemSymbolName: "ellipsis.circle", accessibilityDescription: "Page Actions")
+        button.imagePosition = .imageOnly
+        button.imageScaling = .scaleProportionallyDown
+        button.contentTintColor = .secondaryLabelColor
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.showMenu(_:))
+        return button
+    }
+
+    func updateNSView(_ nsView: NSButton, context: Context) {
+        context.coordinator.onEdit = onEdit
+        context.coordinator.onDuplicate = onDuplicate
+        context.coordinator.onDelete = onDelete
+        context.coordinator.canDelete = canDelete
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onEdit: onEdit, onDuplicate: onDuplicate, onDelete: onDelete, canDelete: canDelete)
+    }
+
+    final class Coordinator: NSObject {
+        var onEdit: () -> Void
+        var onDuplicate: () -> Void
+        var onDelete: () -> Void
+        var canDelete: Bool
+
+        init(onEdit: @escaping () -> Void, onDuplicate: @escaping () -> Void, onDelete: @escaping () -> Void, canDelete: Bool) {
+            self.onEdit = onEdit
+            self.onDuplicate = onDuplicate
+            self.onDelete = onDelete
+            self.canDelete = canDelete
+        }
+
+        @objc func showMenu(_ sender: NSButton) {
+            let menu = NSMenu()
+
+            let editItem = NSMenuItem(title: "Edit Page...", action: #selector(editAction), keyEquivalent: "")
+            editItem.target = self
+            if let img = NSImage(systemSymbolName: "pencil", accessibilityDescription: "Edit") {
+                img.isTemplate = true
+                editItem.image = img
+            }
+            menu.addItem(editItem)
+
+            let dupItem = NSMenuItem(title: "Duplicate Page", action: #selector(duplicateAction), keyEquivalent: "")
+            dupItem.target = self
+            if let img = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: "Duplicate") {
+                img.isTemplate = true
+                dupItem.image = img
+            }
+            menu.addItem(dupItem)
+
+            menu.addItem(NSMenuItem.separator())
+
+            let delItem = NSMenuItem(title: "Delete Page", action: #selector(deleteAction), keyEquivalent: "")
+            delItem.target = self
+            if let img = NSImage(systemSymbolName: "trash", accessibilityDescription: "Delete") {
+                img.isTemplate = true
+                delItem.image = img
+            }
+            delItem.isEnabled = canDelete
+            menu.addItem(delItem)
+
+            let location = NSPoint(x: 0, y: sender.bounds.height + 4)
+            menu.popUp(positioning: nil, at: location, in: sender)
+        }
+
+        @objc func editAction() { onEdit() }
+        @objc func duplicateAction() { onDuplicate() }
+        @objc func deleteAction() { onDelete() }
     }
 }
 
@@ -324,22 +411,26 @@ struct TeleprompterSettings: View {
                 if service.guidanceMode != .wordTracking {
                     HStack(spacing: 8) {
                         Text("Scroll Speed")
-                            .frame(width: 110, alignment: .leading)
-                        Text("Slower")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                        Slider(value: $service.scrollSpeed, in: 1.0...6.0, step: 0.1)
-                            .onChange(of: service.scrollSpeed) { _, _ in
-                                triggerHaptic()
-                                service.savePreferences()
-                            }
-                        Text("Faster")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                        Text(String(format: "%.1fx", service.scrollSpeed))
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 44, alignment: .trailing)
+                            .frame(width: 130, alignment: .leading)
+                        Spacer()
+                        HStack(spacing: 6) {
+                            Text("Slower")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                            Slider(value: $service.scrollSpeed, in: 1.0...6.0, step: 0.1)
+                                .frame(width: 130)
+                                .onChange(of: service.scrollSpeed) { _, _ in
+                                    triggerHaptic()
+                                    service.savePreferences()
+                                }
+                            Text("Faster")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                            Text(String(format: "%.1fx", service.scrollSpeed))
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 38, alignment: .trailing)
+                        }
                     }
                 }
 
@@ -692,35 +783,13 @@ struct TeleprompterSettings: View {
 
             Spacer()
 
-            Menu {
-                Button {
-                    openPageEditor(index: index)
-                } label: {
-                    Label("Edit Page...", systemImage: "pencil")
-                }
-
-                Button {
-                    duplicatePage(at: index)
-                } label: {
-                    Label("Duplicate Page", systemImage: "doc.on.doc")
-                }
-
-                Divider()
-
-                Button(role: .destructive) {
-                    pageToDelete = index
-                } label: {
-                    Label("Delete Page", systemImage: "trash")
-                }
-                .disabled(pagesList.count <= 1)
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.system(size: 15))
-                    .foregroundStyle(.secondary)
-                    .contentShape(Rectangle())
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
+            PageActionMenuButton(
+                onEdit: { openPageEditor(index: index) },
+                onDuplicate: { duplicatePage(at: index) },
+                onDelete: { pageToDelete = index },
+                canDelete: pagesList.count > 1
+            )
+            .frame(width: 18, height: 18)
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
@@ -943,6 +1012,24 @@ final class PageEditorWindowController: NSObject {
 
     private var currentSheet: NSWindow?
     private var isDismissing: Bool = false
+    private var isExpanded: Bool = false
+
+    func toggleZoom() {
+        guard let panel = currentSheet else { return }
+        let normalSize = NSSize(width: 660, height: 520)
+        let expandedSize = NSSize(width: 900, height: 750)
+
+        let targetSize = isExpanded ? normalSize : expandedSize
+        var frame = panel.frame
+        let dw = targetSize.width - frame.size.width
+        let dh = targetSize.height - frame.size.height
+        frame.origin.x -= dw / 2
+        frame.origin.y -= dh / 2
+        frame.size = targetSize
+
+        panel.setFrame(frame, display: true, animate: true)
+        isExpanded.toggle()
+    }
 
     func show(
         pageIndex: Int,
@@ -953,6 +1040,7 @@ final class PageEditorWindowController: NSObject {
         onDone: @escaping (String) -> Void
     ) {
         guard !isDismissing else { return }
+        isExpanded = false
 
         let parentWindow = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: { $0.isVisible && !$0.isMiniaturized })
 
@@ -1019,6 +1107,7 @@ final class PageEditorWindowController: NSObject {
 
 struct PageEditorDialog: View {
     let pageIndex: Int
+    private let initialText: String
     @State private var text: String
     @ObservedObject var service: TeleprompterService
     @ObservedObject var dictation: DictationManager
@@ -1031,6 +1120,7 @@ struct PageEditorDialog: View {
     @State private var dictationHighlightRange: NSRange? = nil
     @State private var highlightClearTimer: Timer?
     @State private var isHoveringControls: Bool = false
+    @State private var showingUnsavedAlert: Bool = false
 
     @State private var segmentStart: Int = 0
     @State private var segmentLength: Int = 0
@@ -1047,6 +1137,7 @@ struct PageEditorDialog: View {
         onDone: @escaping (String) -> Void
     ) {
         self.pageIndex = pageIndex
+        self.initialText = initialText
         self._text = State(initialValue: initialText)
         self.service = service
         self.dictation = dictation
@@ -1065,6 +1156,17 @@ struct PageEditorDialog: View {
         let mins = seconds / 60
         let remSecs = seconds % 60
         return mins > 0 ? "~\(mins)m \(remSecs)s" : "~\(remSecs)s"
+    }
+
+    private func attemptClose() {
+        if text != initialText {
+            showingUnsavedAlert = true
+        } else {
+            if dictation.isRecording {
+                stopDictation()
+            }
+            onCancel()
+        }
     }
 
     var body: some View {
@@ -1088,7 +1190,7 @@ struct PageEditorDialog: View {
                                     .opacity(isHoveringControls ? 1 : 0)
                             )
                             .onTapGesture {
-                                onCancel()
+                                attemptClose()
                             }
                             .help("Close & Discard")
 
@@ -1114,9 +1216,9 @@ struct PageEditorDialog: View {
                                     .opacity(isHoveringControls ? 1 : 0)
                             )
                             .onTapGesture {
-                                NSApp.keyWindow?.zoom(nil)
+                                PageEditorWindowController.shared.toggleZoom()
                             }
-                            .help("Zoom")
+                            .help("Toggle Zoom")
                     }
                     .onHover { isHoveringControls = $0 }
 
@@ -1137,20 +1239,46 @@ struct PageEditorDialog: View {
                         .menuStyle(.borderedButton)
                         .controlSize(.small)
 
-                        Button {
-                            toggleDictation()
-                        } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: dictation.isRecording ? "stop.circle.fill" : "mic.fill")
-                                    .foregroundStyle(dictation.isRecording ? .red : .primary)
-                                Text(dictation.isRecording ? "Listening" : "Dictate")
-                                if dictation.isRecording {
-                                    DictationWaveformView(levels: dictation.audioLevels)
+                        if dictation.isRecording {
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(Color.red)
+                                    .frame(width: 6, height: 6)
+
+                                Text("Listening")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.red)
+
+                                DictationWaveformView(levels: dictation.audioLevels, color: .red)
+
+                                Button {
+                                    stopDictation()
+                                    triggerHaptic()
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.secondary)
                                 }
+                                .buttonStyle(.plain)
+                                .help("Stop Dictation")
                             }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .strokeBorder(Color.red.opacity(0.2), lineWidth: 1)
+                            )
+                        } else {
+                            Button {
+                                startDictation()
+                                triggerHaptic()
+                            } label: {
+                                Label("Dictate", systemImage: "mic.fill")
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
                     }
                 }
             }
@@ -1211,10 +1339,7 @@ struct PageEditorDialog: View {
 
                 HStack(spacing: 8) {
                     Button("Cancel") {
-                        if dictation.isRecording {
-                            stopDictation()
-                        }
-                        onCancel()
+                        attemptClose()
                     }
                     .keyboardShortcut(.cancelAction)
                     .buttonStyle(.bordered)
@@ -1236,6 +1361,23 @@ struct PageEditorDialog: View {
             .background(Color(NSColor.windowBackgroundColor))
         }
         .frame(minWidth: 540, idealWidth: 660, maxWidth: 920, minHeight: 400, idealHeight: 520, maxHeight: 820)
+        .alert("Unsaved Changes", isPresented: $showingUnsavedAlert) {
+            Button("Discard Changes", role: .destructive) {
+                if dictation.isRecording {
+                    stopDictation()
+                }
+                onCancel()
+            }
+            Button("Keep Editing", role: .cancel) { }
+            Button("Save & Close") {
+                if dictation.isRecording {
+                    stopDictation()
+                }
+                onDone(text)
+            }
+        } message: {
+            Text("You have unsaved changes in Page \(pageIndex + 1). Do you want to discard them?")
+        }
     }
 
     private func insertCue(_ cue: String) {
@@ -1282,7 +1424,8 @@ struct PageEditorDialog: View {
 
             let sep = segmentNeedsSeparator ? " " : ""
             let newSegment = sep + effectiveText
-            text.insert(contentsOf: newSegment, at: text.index(text.startIndex, offsetBy: min(segmentStart, text.count)))
+            let insertIndex = text.index(text.startIndex, offsetBy: min(segmentStart, text.count))
+            text.insert(contentsOf: newSegment, at: insertIndex)
 
             let prevLen = segmentLength
             segmentLength = newSegment.count
@@ -1293,7 +1436,9 @@ struct PageEditorDialog: View {
                 dictationHighlightRange = NSRange(location: highlightStart, length: newChars)
             }
 
-            caretPosition = segmentStart + segmentLength
+            let newCaret = segmentStart + segmentLength
+            caretPosition = newCaret
+            editorCaretPosition = newCaret
 
             highlightClearTimer?.invalidate()
             highlightClearTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { _ in
