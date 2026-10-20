@@ -570,11 +570,13 @@ final class TeleprompterService: ObservableObject {
 
     private func startPreviewProgressTimerIfNeeded() {
         guard previewProgressTimer == nil else { return }
+        let wordCount = max(1, splitTextIntoWords(Self.previewScript).count)
         previewProgressTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-            guard let self, self.isPreviewingInNotch || self.isPreviewingFloating else { return }
-            let wordCount = max(1, splitTextIntoWords(Self.previewScript).count)
-            let next = self.previewWordProgress + self.scrollSpeed * 0.05
-            self.previewWordProgress = next >= Double(wordCount) ? 0 : next
+            MainActor.assumeIsolated {
+                guard let self, self.isPreviewingInNotch || self.isPreviewingFloating else { return }
+                let next = self.previewWordProgress + self.scrollSpeed * 0.05
+                self.previewWordProgress = next >= Double(wordCount) ? 0 : next
+            }
         }
     }
 
