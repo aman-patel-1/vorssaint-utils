@@ -38,6 +38,7 @@ enum SettingsDirectory {
     /// Shared pages whose tools cover the page without a separate overview row.
     private static let toolOnlyPages: Set<SettingsPage> = [
         .energy, .mouse, .switcher, .dock, .clipboard, .cutPaste, .quickTools, .screenshot,
+        .teleprompter,
     ]
 
     /// Keep the directory's destinations, but show the most useful groups
