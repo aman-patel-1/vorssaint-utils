@@ -212,7 +212,6 @@ enum DefaultsKey {
     static let teleprompterEnabled = "teleprompterEnabled"
     static let teleprompterScriptText = "teleprompterScriptText"
     static let teleprompterGuidanceMode = "teleprompterGuidanceMode"
-    static let teleprompterOverlayMode = "teleprompterOverlayMode"
     static let teleprompterScrollSpeed = "teleprompterScrollSpeed"
     static let teleprompterFontSize = "teleprompterFontSize"
     static let teleprompterFontFamily = "teleprompterFontFamily"
@@ -234,14 +233,11 @@ enum DefaultsKey {
     static let teleprompterHeight = "teleprompterHeight"
     static let teleprompterIsRunning = "teleprompterIsRunning"
     static let teleprompterReadingPosition = "teleprompterReadingPosition"
-    static let teleprompterDisplayTargetMode = "teleprompterDisplayTargetMode"
     static let teleprompterShowParagraphDividers = "teleprompterShowParagraphDividers"
     static let teleprompterShowLastSpokenWords = "teleprompterShowLastSpokenWords"
     static let teleprompterKeepScreenAwake = "teleprompterKeepScreenAwake"
     static let teleprompterShowElapsedTime = "teleprompterShowElapsedTime"
-    static let teleprompterHideFromScreenShare = "teleprompterHideFromScreenShare"
     static let teleprompterAutoNextPage = "teleprompterAutoNextPage"
-    static let teleprompterOverlayTransparency = "teleprompterOverlayTransparency"
     static let teleprompterShortcutEnabled = "teleprompterShortcutEnabled"
     static let teleprompterShortcut = "teleprompterShortcut"
     static let extraBrightnessEnabled = "extraBrightnessEnabled"
@@ -2003,7 +1999,6 @@ enum Defaults {
         // Teleprompter
         DefaultsKey.teleprompterEnabled: true,
         DefaultsKey.teleprompterGuidanceMode: "wordTracking",
-        DefaultsKey.teleprompterOverlayMode: "notch",
         DefaultsKey.teleprompterScrollSpeed: 2.5,
         DefaultsKey.teleprompterFontSize: "sm",
         DefaultsKey.teleprompterFontFamily: "sans",
@@ -2013,14 +2008,11 @@ enum Defaults {
         DefaultsKey.teleprompterWidth: 560.0,
         DefaultsKey.teleprompterHeight: 280.0,
         DefaultsKey.teleprompterReadingPosition: "centered",
-        DefaultsKey.teleprompterDisplayTargetMode: "followMouse",
         DefaultsKey.teleprompterShowParagraphDividers: false,
         DefaultsKey.teleprompterShowLastSpokenWords: true,
         DefaultsKey.teleprompterKeepScreenAwake: true,
         DefaultsKey.teleprompterShowElapsedTime: true,
-        DefaultsKey.teleprompterHideFromScreenShare: true,
         DefaultsKey.teleprompterAutoNextPage: false,
-        DefaultsKey.teleprompterOverlayTransparency: 0.15,
         DefaultsKey.teleprompterRemoteServerEnabled: false,
         DefaultsKey.teleprompterRemoteServerPort: 7373,
         DefaultsKey.teleprompterDirectorServerEnabled: false,

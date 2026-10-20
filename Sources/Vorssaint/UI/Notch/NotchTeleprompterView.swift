@@ -98,7 +98,7 @@ struct NotchTeleprompterView: View {
                         dragStartHeight = Double(service.windowHeight)
                     }
                     let newHeight = dragStartHeight + Double(value.translation.height)
-                    let heightRange = TeleprompterService.windowHeightRange(for: service.overlayMode)
+                    let heightRange = TeleprompterService.notchWindowHeightRange
                     service.windowHeight = min(
                         heightRange.upperBound,
                         max(heightRange.lowerBound, newHeight)

@@ -25,8 +25,7 @@ private struct TeleprompterPreviewSettingsSnapshot: Equatable {
             service.guidanceMode.rawValue, String(service.scrollSpeed),
             service.readingPosition.rawValue, String(service.showParagraphDividers),
             String(service.showLastSpokenWords), String(service.windowWidth), String(service.windowHeight),
-            service.displayTargetMode.rawValue,
-            String(service.overlayTransparency), String(service.showElapsedTime),
+            String(service.showElapsedTime),
             String(service.autoNextPage), service.externalDisplayMode.rawValue,
             service.externalMirrorAxis.rawValue
         ]
@@ -57,62 +56,6 @@ struct InfoTip: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(width: 250)
                 .padding(12)
-        }
-    }
-}
-
-private struct TeleprompterAppearanceOption: View {
-    let mode: TeleprompterOverlayMode
-    let isSelected: Bool
-    let highlightColor: Color
-    let isPreviewActive: Bool
-    let canPreview: Bool
-    let selectAction: () -> Void
-    let previewAction: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Button(action: selectAction) {
-                HStack(spacing: 6) {
-                    Image(systemName: mode.icon)
-                        .foregroundStyle(isSelected ? highlightColor : .secondary)
-                    Text(mode.label)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(highlightColor)
-                            .font(.system(size: 12))
-                    }
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Select \(mode.label) appearance")
-            .accessibilityAddTraits(isSelected ? .isSelected : [])
-
-            HStack {
-                Spacer(minLength: 0)
-                Button(action: previewAction) {
-                    Label(isPreviewActive ? "Close Preview" : "Preview", systemImage: isPreviewActive ? "xmark" : "eye")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(!canPreview)
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            isSelected ? highlightColor.opacity(0.10) : Color.primary.opacity(0.035),
-            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(isSelected ? highlightColor.opacity(0.58) : Color.primary.opacity(0.10),
-                              lineWidth: isSelected ? 1.5 : 1)
         }
     }
 }
@@ -346,7 +289,7 @@ struct TeleprompterSettings: View {
     }
 
     private func closeAppearancePreviewIfActive() {
-        if !service.isRunning && (service.isPreviewingInNotch || service.isPreviewingFloating) {
+        if !service.isRunning && service.isPreviewingInNotch {
             service.closeNotchPreview()
         }
     }
@@ -390,48 +333,27 @@ struct TeleprompterSettings: View {
                     Text("Teleprompter Appearance")
                         .font(.headline)
 
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
-                               spacing: 8) {
-                        ForEach(TeleprompterOverlayMode.allCases) { mode in
-                            TeleprompterAppearanceOption(
-                                mode: mode,
-                                isSelected: service.overlayMode == mode,
-                                highlightColor: service.highlightColor.color,
-                                isPreviewActive: mode == .notch
-                                    ? service.isPreviewingInNotch : service.isPreviewingFloating,
-                                canPreview: teleprompterEnabled && !service.isRunning,
-                                selectAction: {
-                                    if service.overlayMode == mode {
-                                        if service.isPreviewingInNotch || service.isPreviewingFloating {
-                                            service.closeNotchPreview()
-                                        }
-                                    } else {
-                                        service.selectOverlayMode(mode)
-                                        lastPreviewSettings = TeleprompterPreviewSettingsSnapshot(service)
-                                    }
-                                },
-                                previewAction: {
-                                    let isPreviewActive = mode == .notch
-                                        ? service.isPreviewingInNotch : service.isPreviewingFloating
-                                    if isPreviewActive {
-                                        service.closeNotchPreview()
-                                    } else {
-                                        if service.overlayMode != mode { service.selectOverlayMode(mode) }
-                                        lastPreviewSettings = TeleprompterPreviewSettingsSnapshot(service)
-                                        service.previewInNotch(autoCloseAfter: 4)
-                                    }
-                                }
-                            )
+                    HStack {
+                        Label("Notch", systemImage: "capsule")
+                            .font(.subheadline.weight(.medium))
+                        Spacer()
+                        Button {
+                            if service.isPreviewingInNotch {
+                                service.closeNotchPreview()
+                            } else {
+                                lastPreviewSettings = TeleprompterPreviewSettingsSnapshot(service)
+                                service.previewInNotch(autoCloseAfter: 4)
+                            }
+                        } label: {
+                            Label(service.isPreviewingInNotch ? "Close Preview" : "Preview",
+                                  systemImage: service.isPreviewingInNotch ? "xmark" : "eye")
                         }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(!teleprompterEnabled || service.isRunning || !NotchSupport.isEnabled())
                     }
-                    .disabled(!teleprompterEnabled)
                 }
-                .onChange(of: service.overlayMode) { _, _ in
-                    triggerHaptic()
-                    lastPreviewSettings = TeleprompterPreviewSettingsSnapshot(service)
-                    service.savePreferences()
-                    service.applyOverlayPlacement()
-                }
+                .disabled(!teleprompterEnabled)
             } header: {
                 Text(strings.title)
             }
@@ -477,7 +399,10 @@ struct TeleprompterSettings: View {
                         Label("Open Prompter", systemImage: "rectangle.topthird.inset.filled")
                     }
                     .buttonStyle(.borderedProminent)
-                    .help("Open the notch's ready state. Starting the prompter uses the selected appearance.")
+                    .disabled(!NotchSupport.isEnabled())
+                    .help(NotchSupport.isEnabled()
+                          ? "Open the teleprompter in the notch. Start reading from its ready state."
+                          : "Enable the notch in Notch settings to use the teleprompter.")
                 }
                 .padding(.top, 4)
             } header: {
@@ -488,9 +413,7 @@ struct TeleprompterSettings: View {
 
             // MARK: - 3. Appearance Section
             Section {
-                Text(service.overlayMode == .notch
-                     ? "Text and cue styling for the notch surface."
-                     : "Text, cue, and translucency styling for the floating window.")
+                Text("Text and cue styling for the notch surface.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -536,7 +459,7 @@ struct TeleprompterSettings: View {
                 HStack {
                     HStack(spacing: 4) {
                         Text("Reading Position")
-                        InfoTip(text: "Anchor position of the active reading line within the selected appearance.")
+                        InfoTip(text: "Anchor position of the active reading line within the notch.")
                     }
                     Spacer()
                     Picker("", selection: $service.readingPosition) {
@@ -552,11 +475,11 @@ struct TeleprompterSettings: View {
                 }
 
                 HStack(spacing: 12) {
-                    Text(service.overlayMode == .notch ? "Notch Width" : "Window Width")
+                    Text("Notch Width")
                         .frame(width: 110, alignment: .leading)
                     Slider(value: $service.windowWidth,
-                           in: TeleprompterService.windowWidthRange(for: service.overlayMode), step: 20)
-                        .help("\(Int(TeleprompterService.windowWidthRange(for: service.overlayMode).lowerBound))–\(Int(TeleprompterService.windowWidthRange(for: service.overlayMode).upperBound)) points.")
+                           in: TeleprompterService.notchWindowWidthRange, step: 20)
+                        .help("\(Int(TeleprompterService.notchWindowWidthRange.lowerBound))–\(Int(TeleprompterService.notchWindowWidthRange.upperBound)) points.")
                         .onChange(of: service.windowWidth) { _, _ in service.savePreferences() }
                     Text("\(Int(service.windowWidth)) pt")
                         .font(.system(size: 11, design: .monospaced))
@@ -565,29 +488,16 @@ struct TeleprompterSettings: View {
                 }
 
                 HStack(spacing: 12) {
-                    Text(service.overlayMode == .notch ? "Notch Height" : "Window Height")
+                    Text("Notch Height")
                         .frame(width: 110, alignment: .leading)
                     Slider(value: $service.windowHeight,
-                           in: TeleprompterService.windowHeightRange(for: service.overlayMode), step: 20)
-                        .help("\(Int(TeleprompterService.windowHeightRange(for: service.overlayMode).lowerBound))–\(Int(TeleprompterService.windowHeightRange(for: service.overlayMode).upperBound)) points.")
+                           in: TeleprompterService.notchWindowHeightRange, step: 20)
+                        .help("\(Int(TeleprompterService.notchWindowHeightRange.lowerBound))–\(Int(TeleprompterService.notchWindowHeightRange.upperBound)) points.")
                         .onChange(of: service.windowHeight) { _, _ in service.savePreferences() }
                     Text("\(Int(service.windowHeight)) pt")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .frame(width: 50, alignment: .trailing)
-                }
-
-                if service.overlayMode == .floating {
-                    HStack(spacing: 12) {
-                        Text("Transparency")
-                            .frame(width: 110, alignment: .leading)
-                        Slider(value: $service.overlayTransparency, in: 0.0...0.5, step: 0.05)
-                            .onChange(of: service.overlayTransparency) { _, _ in service.savePreferences() }
-                        Text("\(Int(service.overlayTransparency * 100))%")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 50, alignment: .trailing)
-                    }
                 }
 
             } header: {
@@ -598,9 +508,7 @@ struct TeleprompterSettings: View {
 
             // MARK: - 4. Guidance Section
             Section {
-                Text(service.overlayMode == .notch
-                     ? "Speech tracking and scroll behavior for the notch surface."
-                     : "Speech tracking and scroll behavior for the floating window.")
+                Text("Speech tracking and scroll behavior for the notch surface.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -685,41 +593,6 @@ struct TeleprompterSettings: View {
             }
             .disabled(!teleprompterEnabled)
             .simultaneousGesture(TapGesture().onEnded { closeAppearancePreviewIfActive() })
-
-            // MARK: - 6. Floating Window Controls
-            if service.overlayMode == .floating {
-                Section {
-                    HStack {
-                        HStack(spacing: 4) {
-                            Text("Display Target")
-                            InfoTip(text: "Follow Mouse displays the prompter on the monitor where your cursor is; Fixed Display keeps it locked to a single screen.")
-                        }
-                        Spacer()
-                        Picker("", selection: $service.displayTargetMode) {
-                            ForEach(TeleprompterDisplayTargetMode.allCases) { tm in
-                                Text(tm.label).tag(tm)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .onChange(of: service.displayTargetMode) { _, _ in
-                            triggerHaptic()
-                            service.savePreferences()
-                        }
-                    }
-
-                    Toggle(isOn: $service.hideFromScreenShare) {
-                        HStack(spacing: 4) {
-                            Text("Hide from screen sharing")
-                            InfoTip(text: "Sets window sharing to none, ensuring your script remains completely invisible during Zoom, Teams, and Google Meet screen presentations.")
-                        }
-                    }
-                    .onChange(of: service.hideFromScreenShare) { _, _ in service.savePreferences() }
-                } header: {
-                    Text("Floating Window Controls")
-                }
-                .disabled(!teleprompterEnabled)
-                .simultaneousGesture(TapGesture().onEnded { closeAppearancePreviewIfActive() })
-            }
 
             // MARK: - 7. External Display Section
             Section {
@@ -1210,7 +1083,7 @@ final class PageEditorWindowController: NSObject, ObservableObject {
         guard !isDismissing else { return }
         isExpanded = false
 
-        // Never attach an editor sheet to the notch or the floating prompter.
+        // Never attach an editor sheet to the notch prompter.
         // Doing so stacks interactive notch controls under the dialog and can
         // make clicks intended for the editor activate those controls.
         let parentWindow = NSApp.windows.first(where: {

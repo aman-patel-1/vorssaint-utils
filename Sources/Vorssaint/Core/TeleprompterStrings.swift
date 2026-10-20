@@ -13,10 +13,6 @@ public struct TeleprompterStrings {
     public let classicDesc: String
     public let voiceActivated: String
     public let voiceActivatedDesc: String
-    public let overlayMode: String
-    public let floatingHUD: String
-    public let notchEmbedded: String
-    public let both: String
     public let scrollSpeed: String
     public let fontSize: String
     public let fontFamily: String
@@ -44,12 +40,10 @@ public struct TeleprompterStrings {
     public let paused: String
     public let ready: String
     public let stopped: String
-    public let openFloatingHUD: String
-    public let closeFloatingHUD: String
 
     public static let enUS = TeleprompterStrings(
         title: "Teleprompter",
-        hubDescription: "Voice-activated, word-tracking teleprompter HUD and Dynamic Island overlay with remote control.",
+        hubDescription: "Voice-activated, word-tracking teleprompter in the notch with remote control.",
         guidanceMode: "Guidance Mode",
         wordTracking: "Word Tracking",
         wordTrackingDesc: "Highlights words in real time as you speak them using speech recognition.",
@@ -57,10 +51,6 @@ public struct TeleprompterStrings {
         classicDesc: "Scrolls the script smoothly at a constant adjustable speed.",
         voiceActivated: "Voice Activated",
         voiceActivatedDesc: "Advances scrolling only while your voice is actively detected.",
-        overlayMode: "Display Mode",
-        floatingHUD: "Floating HUD",
-        notchEmbedded: "Dynamic Island / Notch",
-        both: "Both Windows",
         scrollSpeed: "Scroll Speed",
         fontSize: "Font Size",
         fontFamily: "Font Family",
@@ -87,14 +77,12 @@ public struct TeleprompterStrings {
         listening: "Listening...",
         paused: "Paused",
         ready: "Ready",
-        stopped: "Stopped",
-        openFloatingHUD: "Open Floating HUD",
-        closeFloatingHUD: "Close Floating HUD"
+        stopped: "Stopped"
     )
 
     public static let tr = TeleprompterStrings(
         title: "Teleprompter",
-        hubDescription: "Ses algılama ve kelime takipli teleprompter HUD ve Dynamic Island katmanı.",
+        hubDescription: "Ses algılama ve kelime takibiyle notch üzerinde teleprompter.",
         guidanceMode: "Yönlendirme Modu",
         wordTracking: "Kelime Takibi",
         wordTrackingDesc: "Konuşma tanıma ile konuştukça kelimeleri gerçek zamanlı vurgular.",
@@ -102,10 +90,6 @@ public struct TeleprompterStrings {
         classicDesc: "Metni ayarlanabilir sabit bir hızda kaydırır.",
         voiceActivated: "Sesle Etkinleşen",
         voiceActivatedDesc: "Sadece sesiniz algılandığında kaydırmayı sürdürür.",
-        overlayMode: "Görünüm Modu",
-        floatingHUD: "Kayan Pencere",
-        notchEmbedded: "Dynamic Island / Çentik",
-        both: "İkisi Birden",
         scrollSpeed: "Kaydırma Hızı",
         fontSize: "Yazı Boyutu",
         fontFamily: "Yazı Tipi",
@@ -132,9 +116,7 @@ public struct TeleprompterStrings {
         listening: "Dinleniyor...",
         paused: "Duraklatıldı",
         ready: "Hazır",
-        stopped: "Durduruldu",
-        openFloatingHUD: "Kayan Pencereyi Aç",
-        closeFloatingHUD: "Kayan Pencereyi Kapat"
+        stopped: "Durduruldu"
     )
 }
 

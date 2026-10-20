@@ -41,29 +41,6 @@ enum GuidanceMode: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Overlay Mode
-
-enum TeleprompterOverlayMode: String, CaseIterable, Identifiable {
-    case notch
-    case floating
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .notch:      return "Notch"
-        case .floating:   return "Floating Window"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .notch:      return "capsule"
-        case .floating:   return "macwindow"
-        }
-    }
-}
-
 // MARK: - Typography & Styling Presets
 
 enum TeleprompterFontSizePreset: String, CaseIterable, Identifiable {
@@ -248,19 +225,6 @@ enum TeleprompterReadingPosition: String, CaseIterable, Identifiable {
         switch self {
         case .centered: return "Centered"
         case .nearTop:  return "Near Top"
-        }
-    }
-}
-
-enum TeleprompterDisplayTargetMode: String, CaseIterable, Identifiable {
-    case followMouse, fixedDisplay
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .followMouse:  return "Follow Mouse"
-        case .fixedDisplay: return "Fixed Display"
         }
     }
 }
