@@ -12,6 +12,7 @@ import SwiftUI
 final class TeleprompterService: ObservableObject {
     static let shared = TeleprompterService()
     static let maximumPageCount = 12
+    static let scrollSpeedRange = 0.25...3.0
 
     @Published var isRunning: Bool = false {
         didSet { UserDefaults.standard.set(isRunning, forKey: DefaultsKey.teleprompterIsRunning) }
@@ -42,7 +43,12 @@ final class TeleprompterService: ObservableObject {
         }
     }
     @Published var overlayMode: TeleprompterOverlayMode = .notch
-    @Published var scrollSpeed: Double = 2.5
+    @Published var scrollSpeed: Double = 2.5 {
+        didSet {
+            let bounded = Self.clampedScrollSpeed(scrollSpeed)
+            if bounded != scrollSpeed { scrollSpeed = bounded }
+        }
+    }
     @Published var fontSize: TeleprompterFontSizePreset = .sm
     @Published var fontFamily: TeleprompterFontFamilyPreset = .sans
     @Published var highlightColor: TeleprompterHighlightColorPreset = .yellow
@@ -92,6 +98,10 @@ final class TeleprompterService: ObservableObject {
         let mins = elapsedSeconds / 60
         let secs = elapsedSeconds % 60
         return String(format: "%02d:%02d", mins, secs)
+    }
+
+    static func clampedScrollSpeed(_ speed: Double) -> Double {
+        speed.isFinite ? min(scrollSpeedRange.upperBound, max(scrollSpeedRange.lowerBound, speed)) : 2.5
     }
 
     var currentScript: String {
@@ -524,6 +534,7 @@ final class TeleprompterService: ObservableObject {
                 TeleprompterFloatingWindowController.shared.showAtNotch()
             }
         } else if overlayMode == .floating {
+            NotchService.shared.collapse()
             floatingWindowVisible = true
             TeleprompterFloatingWindowController.shared.show()
         }

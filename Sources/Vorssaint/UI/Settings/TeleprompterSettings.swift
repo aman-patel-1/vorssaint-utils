@@ -318,13 +318,20 @@ struct TeleprompterSettings: View {
                     Spacer()
 
                     Button {
-                        NotchService.shared.open(.teleprompter)
+                        if service.overlayMode == .floating {
+                            service.start()
+                        } else {
+                            NotchService.shared.open(.teleprompter)
+                        }
                         triggerHaptic()
                     } label: {
-                        Label("Open Prompter", systemImage: "arrow.up.forward.square")
+                        Label(service.overlayMode == .floating ? "Start Floating Prompter" : "Open Prompter",
+                              systemImage: service.overlayMode == .floating ? "macwindow" : "arrow.up.forward.square")
                     }
                     .buttonStyle(.borderedProminent)
-                    .help("Open the Notch menu to choose a page and control the prompter.")
+                    .help(service.overlayMode == .floating
+                          ? "Start reading in the floating prompter window."
+                          : "Open the Notch menu to choose a page and control the prompter.")
                 }
                 .padding(.top, 4)
             } header: {
@@ -415,7 +422,7 @@ struct TeleprompterSettings: View {
                     HStack(spacing: 12) {
                         Text("Scroll Speed")
                             .frame(width: 110, alignment: .leading)
-                        Slider(value: $service.scrollSpeed, in: 1.0...6.0, step: 0.1)
+                        Slider(value: $service.scrollSpeed, in: TeleprompterService.scrollSpeedRange, step: 0.05)
                             .onChange(of: service.scrollSpeed) { _, _ in
                                 triggerHaptic()
                                 service.savePreferences()

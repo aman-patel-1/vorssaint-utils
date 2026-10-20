@@ -382,6 +382,7 @@ struct NotchTeleprompterView: View {
     /// capsule, so the page keeps its own toolbar clear and familiar.
     private var addPageButton: some View {
         Button {
+            NotchService.shared.collapse()
             service.pendingAddPageInSettings = true
             SettingsRouter.shared.request(AppFeature.teleprompter.settingsDestination)
             (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
