@@ -13,7 +13,11 @@ struct NotchTeleprompterView: View {
     @State private var showingPageCards: Bool = false
     @State private var dragStartHeight: Double = -1
 
-    private let previewScript = "Speak with confidence. [PAUSE] Keep your pace steady and let each idea land. [LOOK AT CAMERA] Then continue with your next thought.\n\nStay clear and breathe naturally. [SMILE]"
+    private let samplePreviewScript = "Speak with confidence. [PAUSE] Keep your pace steady and let each idea land. [LOOK AT CAMERA] Then continue with your next thought.\n\nStay clear and breathe naturally. [SMILE]"
+
+    private var previewScript: String {
+        service.pages.count > 1 ? service.currentScript : samplePreviewScript
+    }
 
     private var showsPrompterSurface: Bool { service.isRunning || service.isPreviewingInNotch }
     private var displayedWords: [String] {
@@ -240,53 +244,30 @@ struct NotchTeleprompterView: View {
     private var activePrompterView: some View {
         VStack(spacing: 8) {
             // Prompter Script Display with Live Real-time Appearance Updates
-            ZStack {
-                SpeechScrollView(
-                    words: displayedWords,
-                    highlightedCharCount: service.isPreviewingInNotch && !service.isRunning
-                        ? previewCharCount : recognizer.recognizedCharCount,
-                    font: service.fontFamily.nsFont(ofSize: service.fontSize.pointSize),
-                    highlightColor: service.highlightColor.color,
-                    cueColor: service.cueColor.color,
-                    cueUnreadOpacity: service.cueBrightness.alpha * 0.35,
-                    cueReadOpacity: service.cueBrightness.alpha,
-                    onWordTap: { charOffset in
-                        if service.isRunning { service.jumpTo(charOffset: charOffset) }
-                    },
-                    smoothScroll: service.guidanceMode != .wordTracking,
-                    smoothWordProgress: service.isPreviewingInNotch && !service.isRunning
-                        ? previewWordProgress : service.timerWordProgress,
-                    isListening: (service.isRunning && !service.isPaused)
-                        || (service.isPreviewingInNotch && !service.isRunning),
-                    paragraphBreakBeforeWordIndices: service.showParagraphDividers
-                        ? paragraphBreakWordIndices(in: service.isPreviewingInNotch && !service.isRunning ? previewScript : service.currentScript) : [],
-                    readingPosition: service.readingPosition,
-                    showLastSpokenWords: service.showLastSpokenWords
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.horizontal, 16)
-
-                // Soft fade mask at top and bottom edges
-                VStack {
-                    LinearGradient(
-                        colors: [.black, .clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 16)
-                    .allowsHitTesting(false)
-
-                    Spacer()
-
-                    LinearGradient(
-                        colors: [.clear, .black],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 16)
-                    .allowsHitTesting(false)
-                }
-            }
+            SpeechScrollView(
+                words: displayedWords,
+                highlightedCharCount: service.isPreviewingInNotch && !service.isRunning
+                    ? previewCharCount : recognizer.recognizedCharCount,
+                font: service.fontFamily.nsFont(ofSize: service.fontSize.pointSize),
+                highlightColor: service.highlightColor.color,
+                cueColor: service.cueColor.color,
+                cueUnreadOpacity: service.cueBrightness.alpha * 0.35,
+                cueReadOpacity: service.cueBrightness.alpha,
+                onWordTap: { charOffset in
+                    if service.isRunning { service.jumpTo(charOffset: charOffset) }
+                },
+                smoothScroll: service.guidanceMode != .wordTracking,
+                smoothWordProgress: service.isPreviewingInNotch && !service.isRunning
+                    ? previewWordProgress : service.timerWordProgress,
+                isListening: (service.isRunning && !service.isPaused)
+                    || (service.isPreviewingInNotch && !service.isRunning),
+                paragraphBreakBeforeWordIndices: service.showParagraphDividers
+                    ? paragraphBreakWordIndices(in: service.isPreviewingInNotch && !service.isRunning ? previewScript : service.currentScript) : [],
+                readingPosition: service.readingPosition,
+                showLastSpokenWords: service.showLastSpokenWords
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal, 16)
             .frame(height: max(100, size.height - 45))
 
             // Footer bar
@@ -296,7 +277,8 @@ struct NotchTeleprompterView: View {
                     liveWaveform
                 }
 
-                if service.isRunning && service.autoNextPage && pagesList.count > 1 {
+                if (service.isRunning || service.isPreviewingInNotch)
+                    && service.autoNextPage && pagesList.count > 1 {
                     Button {
                         service.previousPage()
                     } label: {

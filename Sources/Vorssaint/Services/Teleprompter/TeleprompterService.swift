@@ -333,9 +333,12 @@ final class TeleprompterService: ObservableObject {
 
     private func setupObservers() {
         speechRecognizer.$shouldAdvancePage
+            .removeDuplicates()
             .filter { $0 }
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self else { return }
+                self.speechRecognizer.shouldAdvancePage = false
                 if self.autoNextPage {
                     self.nextPage()
                 }
@@ -649,7 +652,7 @@ final class TeleprompterService: ObservableObject {
     }
 
     func nextPage() {
-        readPages.insert(currentPageIndex)
+        if isRunning { readPages.insert(currentPageIndex) }
         guard !pages.isEmpty, currentPageIndex < pages.count - 1 else {
             stop()
             return

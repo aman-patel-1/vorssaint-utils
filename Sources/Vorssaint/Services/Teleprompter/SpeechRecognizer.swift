@@ -93,6 +93,7 @@ final class SpeechRecognizer: ObservableObject {
 
     func start(with text: String) {
         cleanupRecognition()
+        shouldAdvancePage = false
 
         let words = splitTextIntoWords(text)
         let collapsed = words.joined(separator: " ")
@@ -188,6 +189,7 @@ final class SpeechRecognizer: ObservableObject {
 
     func stop() {
         shouldListen = false
+        shouldAdvancePage = false
         sessionGeneration &+= 1
         isListening = false
         isStarting = false
@@ -698,6 +700,9 @@ final class SpeechRecognizer: ObservableObject {
             confirmed: confirmed
         ) {
             recognizedCharCount = candidate
+            if sourceText.count - candidate <= 2, !shouldAdvancePage {
+                shouldAdvancePage = true
+            }
         }
     }
 
