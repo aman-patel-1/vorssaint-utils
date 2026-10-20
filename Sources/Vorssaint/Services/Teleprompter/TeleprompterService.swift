@@ -86,6 +86,7 @@ final class TeleprompterService: ObservableObject {
     @Published var showParagraphDividers: Bool = false
     @Published var showLastSpokenWords: Bool = true
     @Published var keepScreenAwake: Bool = true
+    @Published var focusNotchMode: Bool = true
     @Published var showElapsedTime: Bool = true
     @Published var autoNextPage: Bool = false
     @Published var speechLocale: String = "en-US"
@@ -265,6 +266,9 @@ final class TeleprompterService: ObservableObject {
         if defaults.object(forKey: DefaultsKey.teleprompterKeepScreenAwake) != nil {
             keepScreenAwake = defaults.bool(forKey: DefaultsKey.teleprompterKeepScreenAwake)
         }
+        if defaults.object(forKey: DefaultsKey.teleprompterFocusNotch) != nil {
+            focusNotchMode = defaults.bool(forKey: DefaultsKey.teleprompterFocusNotch)
+        }
         if defaults.object(forKey: DefaultsKey.teleprompterShowElapsedTime) != nil {
             showElapsedTime = defaults.bool(forKey: DefaultsKey.teleprompterShowElapsedTime)
         }
@@ -312,6 +316,7 @@ final class TeleprompterService: ObservableObject {
         defaults.set(showParagraphDividers, forKey: DefaultsKey.teleprompterShowParagraphDividers)
         defaults.set(showLastSpokenWords, forKey: DefaultsKey.teleprompterShowLastSpokenWords)
         defaults.set(keepScreenAwake, forKey: DefaultsKey.teleprompterKeepScreenAwake)
+        defaults.set(focusNotchMode, forKey: DefaultsKey.teleprompterFocusNotch)
         defaults.set(showElapsedTime, forKey: DefaultsKey.teleprompterShowElapsedTime)
         defaults.set(autoNextPage, forKey: DefaultsKey.teleprompterAutoNextPage)
         defaults.set(speechLocale, forKey: DefaultsKey.teleprompterSpeechLanguage)
@@ -387,6 +392,7 @@ final class TeleprompterService: ObservableObject {
         showParagraphDividers = false
         showLastSpokenWords = true
         keepScreenAwake = true
+        focusNotchMode = true
         showElapsedTime = true
         autoNextPage = false
         externalDisplayMode = .off

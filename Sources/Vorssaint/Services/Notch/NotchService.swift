@@ -179,6 +179,7 @@ final class NotchService: ObservableObject {
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var subscriptions = Set<AnyCancellable>()
     private var teleprompterActivityIsRunning = false
+    private var teleprompterFocusNotchEnabled = true
     private var teleprompterPreviewIsActive = false
     private var teleprompterSubscriptionGeneration: UInt64 = 0
     private var eventMonitors: [Any] = []
@@ -2724,11 +2725,12 @@ final class NotchService: ObservableObject {
         }
         var presented = expanded ? expandedGeometry : geometry
         presented.surfaceShift = surfaceShift
-        let isRunningTeleprompter = selected == .teleprompter && teleprompterActivityIsRunning
+        let isFocusedTeleprompter = selected == .teleprompter
+            && teleprompterActivityIsRunning && teleprompterFocusNotchEnabled
         windowHost?.present(size: size, geometry: presented, animated: animated,
                             transitionContent: contentTransition,
                             quickAccess: expanded && captureControls == nil && !showingCommandBar
-                                && !isRunningTeleprompter && !access.buttons.isEmpty
+                                && !isFocusedTeleprompter && !access.buttons.isEmpty
                                 ? access : nil,
                             revealFromHidden: !hiddenInFullscreen && captureControls == nil
                                 && UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
@@ -3922,13 +3924,17 @@ final class NotchService: ObservableObject {
                       self.modules.contains(.teleprompter) else { return }
                 let prompter = TeleprompterService.shared
                 self.teleprompterActivityIsRunning = prompter.isRunning
+                self.teleprompterFocusNotchEnabled = prompter.focusNotchMode
                 self.teleprompterPreviewIsActive = prompter.isPreviewingInNotch
-                prompter.$isRunning
-                    .removeDuplicates()
+                prompter.$isRunning.combineLatest(prompter.$focusNotchMode)
+                    .removeDuplicates { previous, current in
+                        previous.0 == current.0 && previous.1 == current.1
+                    }
                     .receive(on: DispatchQueue.main)
-                    .sink { [weak self] isRunning in
+                    .sink { [weak self] isRunning, focusNotchEnabled in
                         guard let self else { return }
                         self.teleprompterActivityIsRunning = isRunning
+                        self.teleprompterFocusNotchEnabled = focusNotchEnabled
                         self.objectWillChange.send()
                         self.refreshPresentation()
                     }.store(in: &self.subscriptions)

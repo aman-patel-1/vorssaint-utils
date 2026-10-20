@@ -579,6 +579,9 @@ struct TeleprompterSettings: View {
                 }
                 .onChange(of: service.keepScreenAwake) { _, _ in service.savePreferences() }
 
+                Toggle("Focus Notch", isOn: $service.focusNotchMode)
+                    .onChange(of: service.focusNotchMode) { _, _ in service.savePreferences() }
+
                 Toggle("Show elapsed time", isOn: $service.showElapsedTime)
                     .onChange(of: service.showElapsedTime) { _, _ in service.savePreferences() }
             } header: {
