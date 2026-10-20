@@ -413,7 +413,7 @@ enum ExternalMirrorAxis: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .horizontal: return "Horizontal (Beam Splitter Glass)"
+        case .horizontal: return "Horizontal"
         case .vertical:   return "Vertical"
         case .both:       return "Both"
         }

@@ -7,6 +7,97 @@ import CoreImage.CIFilterBuiltins
 import Speech
 import SwiftUI
 
+// MARK: - Haptic Feedback Performer
+
+private func triggerHaptic() {
+    NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+}
+
+// MARK: - Inline Info / Tooltip Badge
+
+struct InfoTip: View {
+    let text: String
+
+    var body: some View {
+        Image(systemName: "questionmark.circle")
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+            .help(text)
+    }
+}
+
+// MARK: - Circular Color Pickers (Radial Menu Style)
+
+struct TeleprompterHighlightColorPicker: View {
+    @Binding var selection: TeleprompterHighlightColorPreset
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        HStack(spacing: 7) {
+            ForEach(TeleprompterHighlightColorPreset.allCases) { item in
+                Button {
+                    selection = item
+                    triggerHaptic()
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(item.color)
+                            .frame(width: 16, height: 16)
+                        if selection == item {
+                            Circle()
+                                .strokeBorder(Color.white.opacity(colorScheme == .light ? 0.9 : 0.8), lineWidth: 2)
+                                .frame(width: 12, height: 12)
+                            Circle()
+                                .strokeBorder(item.color, lineWidth: 1.5)
+                                .frame(width: 20, height: 20)
+                        }
+                    }
+                    .frame(width: 22, height: 22)
+                    .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help(item.label)
+                .accessibilityLabel(item.label)
+            }
+        }
+    }
+}
+
+struct TeleprompterCueColorPicker: View {
+    @Binding var selection: TeleprompterCueColorPreset
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        HStack(spacing: 7) {
+            ForEach(TeleprompterCueColorPreset.allCases) { item in
+                Button {
+                    selection = item
+                    triggerHaptic()
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(item.color)
+                            .frame(width: 16, height: 16)
+                        if selection == item {
+                            Circle()
+                                .strokeBorder(Color.white.opacity(colorScheme == .light ? 0.9 : 0.8), lineWidth: 2)
+                                .frame(width: 12, height: 12)
+                            Circle()
+                                .strokeBorder(item.color, lineWidth: 1.5)
+                                .frame(width: 20, height: 20)
+                        }
+                    }
+                    .frame(width: 22, height: 22)
+                    .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help(item.label)
+                .accessibilityLabel(item.label)
+            }
+        }
+    }
+}
+
 // MARK: - Inline Waveform for Dictation
 
 struct DictationWaveformView: View {
@@ -40,6 +131,8 @@ struct TeleprompterSettings: View {
     @State private var inputDevices: [AudioInputDevice] = AudioInputDevice.allInputDevices()
     @State private var editingPageIndex: Int? = nil
     @State private var editingPageText: String = ""
+    @State private var originalPageText: String = ""
+    @State private var pageToDelete: Int? = nil
     @State private var confirmingReset = false
     @State private var showingImportError = false
     @State private var importErrorMessage: String? = nil
@@ -63,6 +156,30 @@ struct TeleprompterSettings: View {
                 Text(strings.hubDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                HStack {
+                    Text("Global Shortcut")
+                    Spacer()
+                    ShortcutRecorderButton(
+                        shortcut: GlobalShortcut(storageValue: teleprompterShortcutRaw) ?? .teleprompterDefault,
+                        isEnabled: teleprompterEnabled && teleprompterShortcutEnabled,
+                        waitingTitle: l10n.s.shortcutPressKeys,
+                        invalidAction: { },
+                        captureAction: { saved in
+                            teleprompterShortcutRaw = saved.storageValue
+                            service.syncWithPreferences()
+                        }
+                    )
+                    .frame(width: 108)
+                    .disabled(!teleprompterEnabled || !teleprompterShortcutEnabled)
+
+                    Toggle("", isOn: $teleprompterShortcutEnabled)
+                        .labelsHidden()
+                        .onChange(of: teleprompterShortcutEnabled) { _ in
+                            service.syncWithPreferences()
+                        }
+                        .disabled(!teleprompterEnabled)
+                }
             } header: {
                 Text(strings.title)
             }
@@ -133,27 +250,19 @@ struct TeleprompterSettings: View {
                 }
                 .onChange(of: service.fontSize) { _ in service.savePreferences() }
 
-                Picker("Highlight Color", selection: $service.highlightColor) {
-                    ForEach(TeleprompterHighlightColorPreset.allCases) { col in
-                        HStack(spacing: 6) {
-                            Circle().fill(col.color).frame(width: 10, height: 10)
-                            Text(col.label)
-                        }
-                        .tag(col)
-                    }
+                HStack {
+                    Text("Highlight Color")
+                    Spacer()
+                    TeleprompterHighlightColorPicker(selection: $service.highlightColor)
+                        .onChange(of: service.highlightColor) { _ in service.savePreferences() }
                 }
-                .onChange(of: service.highlightColor) { _ in service.savePreferences() }
 
-                Picker("Cue Color", selection: $service.cueColor) {
-                    ForEach(TeleprompterCueColorPreset.allCases) { cueCol in
-                        HStack(spacing: 6) {
-                            Circle().fill(cueCol.color).frame(width: 10, height: 10)
-                            Text(cueCol.label)
-                        }
-                        .tag(cueCol)
-                    }
+                HStack {
+                    Text("Cue Color")
+                    Spacer()
+                    TeleprompterCueColorPicker(selection: $service.cueColor)
+                        .onChange(of: service.cueColor) { _ in service.savePreferences() }
                 }
-                .onChange(of: service.cueColor) { _ in service.savePreferences() }
 
                 Picker("Cue Brightness", selection: $service.cueBrightness) {
                     ForEach(TeleprompterCueBrightness.allCases) { bright in
@@ -161,30 +270,9 @@ struct TeleprompterSettings: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .onChange(of: service.cueBrightness) { _ in service.savePreferences() }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Window Width")
-                        Spacer()
-                        Text("\(Int(service.windowWidth)) px")
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(value: $service.windowWidth, in: 300...900, step: 10)
-                        .onChange(of: service.windowWidth) { _ in service.savePreferences() }
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Window Height")
-                        Spacer()
-                        Text("\(Int(service.windowHeight)) px")
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(value: $service.windowHeight, in: 120...600, step: 10)
-                        .onChange(of: service.windowHeight) { _ in service.savePreferences() }
+                .onChange(of: service.cueBrightness) { _ in
+                    triggerHaptic()
+                    service.savePreferences()
                 }
             } header: {
                 Text("Appearance")
@@ -193,25 +281,37 @@ struct TeleprompterSettings: View {
 
             // MARK: - 4. Guidance Section
             Section {
-                Picker("Tracking Mode", selection: $service.guidanceMode) {
-                    ForEach(GuidanceMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
+                HStack {
+                    HStack(spacing: 4) {
+                        Text("Tracking Mode")
+                        InfoTip(text: "Word Tracking highlights words as you speak; Classic auto-scrolls at steady pace; Voice-Activated pauses on silence.")
+                    }
+                    Spacer()
+                    Picker("", selection: $service.guidanceMode) {
+                        ForEach(GuidanceMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: service.guidanceMode) { _ in
+                        triggerHaptic()
+                        service.savePreferences()
                     }
                 }
-                .pickerStyle(.segmented)
-                .onChange(of: service.guidanceMode) { _ in service.savePreferences() }
 
                 if service.guidanceMode != .wordTracking {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Scroll Speed")
-                            Spacer()
-                            Text(String(format: "%.1fx", service.scrollSpeed))
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
-                        }
+                    HStack(spacing: 12) {
+                        Text("Scroll Speed")
+                            .frame(width: 110, alignment: .leading)
                         Slider(value: $service.scrollSpeed, in: 1.0...6.0, step: 0.1)
-                            .onChange(of: service.scrollSpeed) { _ in service.savePreferences() }
+                            .onChange(of: service.scrollSpeed) { _ in
+                                triggerHaptic()
+                                service.savePreferences()
+                            }
+                        Text(String(format: "%.1fx", service.scrollSpeed))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 60, alignment: .trailing)
                     }
                 }
 
@@ -230,26 +330,6 @@ struct TeleprompterSettings: View {
                     }
                 }
                 .onChange(of: service.selectedMicUID) { _ in service.savePreferences() }
-
-                HStack {
-                    Toggle("Global Shortcut", isOn: $teleprompterShortcutEnabled)
-                        .onChange(of: teleprompterShortcutEnabled) { _ in
-                            service.syncWithPreferences()
-                        }
-                    Spacer()
-                    ShortcutRecorderButton(
-                        shortcut: GlobalShortcut(storageValue: teleprompterShortcutRaw) ?? .teleprompterDefault,
-                        isEnabled: teleprompterShortcutEnabled,
-                        waitingTitle: l10n.s.shortcutPressKeys,
-                        invalidAction: { },
-                        captureAction: { saved in
-                            teleprompterShortcutRaw = saved.storageValue
-                            service.syncWithPreferences()
-                        }
-                    )
-                    .frame(width: 108)
-                    .disabled(!teleprompterShortcutEnabled)
-                }
             } header: {
                 Text("Guidance")
             }
@@ -257,13 +337,23 @@ struct TeleprompterSettings: View {
 
             // MARK: - 5. Reading Section
             Section {
-                Picker("Reading Position", selection: $service.readingPosition) {
-                    ForEach(TeleprompterReadingPosition.allCases) { pos in
-                        Text(pos.label).tag(pos)
+                HStack {
+                    HStack(spacing: 4) {
+                        Text("Reading Position")
+                        InfoTip(text: "Anchor position of the active reading line within the teleprompter window.")
+                    }
+                    Spacer()
+                    Picker("", selection: $service.readingPosition) {
+                        ForEach(TeleprompterReadingPosition.allCases) { pos in
+                            Text(pos.label).tag(pos)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: service.readingPosition) { _ in
+                        triggerHaptic()
+                        service.savePreferences()
                     }
                 }
-                .pickerStyle(.segmented)
-                .onChange(of: service.readingPosition) { _ in service.savePreferences() }
 
                 Toggle("Show paragraph dividers", isOn: $service.showParagraphDividers)
                     .onChange(of: service.showParagraphDividers) { _ in service.savePreferences() }
@@ -271,8 +361,12 @@ struct TeleprompterSettings: View {
                 Toggle("Show last spoken word", isOn: $service.showLastSpokenWords)
                     .onChange(of: service.showLastSpokenWords) { _ in service.savePreferences() }
 
-                Toggle("Keep screen awake while teleprompter is active", isOn: $service.keepScreenAwake)
-                    .onChange(of: service.keepScreenAwake) { _ in service.savePreferences() }
+                HStack {
+                    Toggle("Keep screen awake while teleprompter is active", isOn: $service.keepScreenAwake)
+                        .onChange(of: service.keepScreenAwake) { _ in service.savePreferences() }
+                    Spacer()
+                    InfoTip(text: "Prevents the display from sleeping during an active teleprompter session using an IOKit power assertion.")
+                }
             } header: {
                 Text("Reading")
             }
@@ -286,33 +380,80 @@ struct TeleprompterSettings: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .onChange(of: service.overlayMode) { _ in service.savePreferences() }
+                .onChange(of: service.overlayMode) { _ in
+                    triggerHaptic()
+                    service.savePreferences()
+                }
 
-                Picker("Display Target", selection: $service.displayTargetMode) {
-                    ForEach(TeleprompterDisplayTargetMode.allCases) { tm in
-                        Text(tm.label).tag(tm)
+                HStack {
+                    HStack(spacing: 4) {
+                        Text("Display Target")
+                        InfoTip(text: "Follow Mouse displays the prompter on the monitor where your cursor is; Fixed Display keeps it locked to a single screen.")
+                    }
+                    Spacer()
+                    Picker("", selection: $service.displayTargetMode) {
+                        ForEach(TeleprompterDisplayTargetMode.allCases) { tm in
+                            Text(tm.label).tag(tm)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: service.displayTargetMode) { _ in
+                        triggerHaptic()
+                        service.savePreferences()
                     }
                 }
-                .pickerStyle(.segmented)
-                .onChange(of: service.displayTargetMode) { _ in service.savePreferences() }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Window Transparency")
-                        Spacer()
-                        Text("\(Int((service.overlayTransparency) * 100))%")
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
+                HStack(spacing: 12) {
+                    Text("Window Width")
+                        .frame(width: 110, alignment: .leading)
+                    Slider(value: $service.windowWidth, in: 300...900, step: 10)
+                        .onChange(of: service.windowWidth) { _ in
+                            triggerHaptic()
+                            service.savePreferences()
+                        }
+                    Text("\(Int(service.windowWidth)) px")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 60, alignment: .trailing)
+                }
+
+                HStack(spacing: 12) {
+                    Text("Window Height")
+                        .frame(width: 110, alignment: .leading)
+                    Slider(value: $service.windowHeight, in: 120...600, step: 10)
+                        .onChange(of: service.windowHeight) { _ in
+                            triggerHaptic()
+                            service.savePreferences()
+                        }
+                    Text("\(Int(service.windowHeight)) px")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 60, alignment: .trailing)
+                }
+
+                HStack(spacing: 12) {
+                    Text("Transparency")
+                        .frame(width: 110, alignment: .leading)
                     Slider(value: $service.overlayTransparency, in: 0.0...0.5, step: 0.05)
-                        .onChange(of: service.overlayTransparency) { _ in service.savePreferences() }
+                        .onChange(of: service.overlayTransparency) { _ in
+                            triggerHaptic()
+                            service.savePreferences()
+                        }
+                    Text("\(Int(service.overlayTransparency * 100))%")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 60, alignment: .trailing)
                 }
 
                 Toggle("Show elapsed time", isOn: $service.showElapsedTime)
                     .onChange(of: service.showElapsedTime) { _ in service.savePreferences() }
 
-                Toggle("Hide from screen sharing", isOn: $service.hideFromScreenShare)
-                    .onChange(of: service.hideFromScreenShare) { _ in service.savePreferences() }
+                HStack {
+                    Toggle("Hide from screen sharing", isOn: $service.hideFromScreenShare)
+                        .onChange(of: service.hideFromScreenShare) { _ in service.savePreferences() }
+                    Spacer()
+                    InfoTip(text: "Sets window sharing to none, ensuring your script remains completely invisible during Zoom, Teams, and Google Meet screen presentations.")
+                }
 
                 Toggle("Auto next page", isOn: $service.autoNextPage)
                     .onChange(of: service.autoNextPage) { _ in service.savePreferences() }
@@ -329,7 +470,10 @@ struct TeleprompterSettings: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .onChange(of: service.externalDisplayMode) { _ in service.savePreferences() }
+                .onChange(of: service.externalDisplayMode) { _ in
+                    triggerHaptic()
+                    service.savePreferences()
+                }
 
                 if service.externalDisplayMode != .off {
                     let externalScreens = NSScreen.screens.filter { $0 != NSScreen.main }
@@ -347,13 +491,24 @@ struct TeleprompterSettings: View {
                     }
 
                     if service.externalDisplayMode == .mirror {
-                        Picker("Mirror Axis", selection: $service.externalMirrorAxis) {
-                            ForEach(ExternalMirrorAxis.allCases) { axis in
-                                Text(axis.label).tag(axis)
+                        HStack {
+                            HStack(spacing: 4) {
+                                Text("Mirror Axis")
+                                InfoTip(text: "Invert text orientation for reflective beam splitter glass rigs.")
+                            }
+                            Spacer()
+                            Picker("", selection: $service.externalMirrorAxis) {
+                                ForEach(ExternalMirrorAxis.allCases) { axis in
+                                    Text(axis.label).tag(axis)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(maxWidth: 220)
+                            .onChange(of: service.externalMirrorAxis) { _ in
+                                triggerHaptic()
+                                service.savePreferences()
                             }
                         }
-                        .pickerStyle(.segmented)
-                        .onChange(of: service.externalMirrorAxis) { _ in service.savePreferences() }
                     }
                 }
             } header: {
@@ -363,15 +518,19 @@ struct TeleprompterSettings: View {
 
             // MARK: - 8. Remote Control Section
             Section {
-                Toggle("Enable Browser Remote", isOn: $service.remoteServerEnabled)
-                    .onChange(of: service.remoteServerEnabled) { _, on in
-                        service.savePreferences()
-                        if on {
-                            service.remoteServer.start()
-                        } else {
-                            service.remoteServer.stop()
+                HStack {
+                    Toggle("Enable Browser Remote", isOn: $service.remoteServerEnabled)
+                        .onChange(of: service.remoteServerEnabled) { _, on in
+                            service.savePreferences()
+                            if on {
+                                service.remoteServer.start()
+                            } else {
+                                service.remoteServer.stop()
+                            }
                         }
-                    }
+                    Spacer()
+                    InfoTip(text: "Control scroll speed, play/pause, and pagination wirelessly from any mobile or desktop browser on your local network.")
+                }
 
                 if service.remoteServerEnabled {
                     remoteViewerDetails
@@ -383,15 +542,19 @@ struct TeleprompterSettings: View {
 
             // MARK: - 9. Director Studio Section
             Section {
-                Toggle("Enable Director Server", isOn: $service.directorServerEnabled)
-                    .onChange(of: service.directorServerEnabled) { _, on in
-                        service.savePreferences()
-                        if on {
-                            service.directorServer.start()
-                        } else {
-                            service.directorServer.stop()
+                HStack {
+                    Toggle("Enable Director Server", isOn: $service.directorServerEnabled)
+                        .onChange(of: service.directorServerEnabled) { _, on in
+                            service.savePreferences()
+                            if on {
+                                service.directorServer.start()
+                            } else {
+                                service.directorServer.stop()
+                            }
                         }
-                    }
+                    Spacer()
+                    InfoTip(text: "Live studio production server for live multi-client script editing and prompting.")
+                }
 
                 if service.directorServerEnabled {
                     directorStudioDetails
@@ -403,13 +566,19 @@ struct TeleprompterSettings: View {
 
             // MARK: - 10. Reset Section
             Section {
-                Button(role: .destructive) {
-                    confirmingReset = true
-                } label: {
-                    HStack {
-                        Image(systemName: "arrow.counterclockwise")
-                        Text("Reset Teleprompter Settings")
+                HStack {
+                    Spacer()
+                    Button(role: .destructive) {
+                        confirmingReset = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "trash")
+                            Text("Reset Teleprompter Settings")
+                        }
+                        .foregroundStyle(.red)
                     }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
                 }
                 .confirmationDialog(
                     "Reset Teleprompter Settings?",
@@ -418,6 +587,7 @@ struct TeleprompterSettings: View {
                 ) {
                     Button("Reset to Defaults", role: .destructive) {
                         service.resetSettings()
+                        triggerHaptic()
                     }
                     Button("Cancel", role: .cancel) { }
                 } message: {
@@ -432,19 +602,26 @@ struct TeleprompterSettings: View {
         .onAppear {
             inputDevices = AudioInputDevice.allInputDevices()
         }
-        .sheet(isPresented: Binding(
-            get: { editingPageIndex != nil },
-            set: { if !$0 { closePageEditor() } }
-        )) {
-            if let idx = editingPageIndex {
-                PageEditorDialog(
-                    pageIndex: idx,
-                    text: $editingPageText,
-                    service: service,
-                    dictation: dictation,
-                    onDone: { closePageEditor() }
-                )
+        .confirmationDialog(
+            "Delete Page \((pageToDelete ?? 0) + 1)?",
+            isPresented: Binding(
+                get: { pageToDelete != nil },
+                set: { if !$0 { pageToDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete Page", role: .destructive) {
+                if let idx = pageToDelete {
+                    deletePage(at: idx)
+                    triggerHaptic()
+                }
+                pageToDelete = nil
             }
+            Button("Cancel", role: .cancel) {
+                pageToDelete = nil
+            }
+        } message: {
+            Text("Are you sure you want to delete this page? This action cannot be undone.")
         }
         .alert("Import Failed", isPresented: $showingImportError) {
             Button("OK") { }
@@ -463,6 +640,7 @@ struct TeleprompterSettings: View {
         return HStack(spacing: 12) {
             Button {
                 service.jumpToPage(index: index)
+                triggerHaptic()
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
@@ -495,13 +673,13 @@ struct TeleprompterSettings: View {
                 Button {
                     duplicatePage(at: index)
                 } label: {
-                    Label("Duplicate Page", systemImage: "plus.square.on.square")
+                    Label("Duplicate Page", systemImage: "doc.on.doc")
                 }
 
                 Divider()
 
                 Button(role: .destructive) {
-                    deletePage(at: index)
+                    pageToDelete = index
                 } label: {
                     Label("Delete Page", systemImage: "trash")
                 }
@@ -528,6 +706,7 @@ struct TeleprompterSettings: View {
         }
         .onTapGesture(count: 1) {
             service.jumpToPage(index: index)
+            triggerHaptic()
         }
     }
 
@@ -548,13 +727,34 @@ struct TeleprompterSettings: View {
         if index < service.pages.count {
             editingPageIndex = index
             editingPageText = service.pages[index]
+            originalPageText = service.pages[index]
+
+            PageEditorWindowController.shared.show(
+                pageIndex: index,
+                text: Binding(
+                    get: { editingPageText },
+                    set: { editingPageText = $0 }
+                ),
+                service: service,
+                dictation: dictation,
+                onCancel: {
+                    closePageEditor(save: false)
+                },
+                onDone: {
+                    closePageEditor(save: true)
+                }
+            )
         }
     }
 
-    private func closePageEditor() {
-        if let idx = editingPageIndex, idx < service.pages.count {
+    private func closePageEditor(save: Bool) {
+        if save, let idx = editingPageIndex, idx < service.pages.count {
             service.pages[idx] = editingPageText
             service.savePreferences()
+        } else if !save, let idx = editingPageIndex, idx < service.pages.count {
+            if originalPageText.isEmpty && editingPageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && service.pages.count > 1 {
+                service.removePage(at: idx)
+            }
         }
         editingPageIndex = nil
     }
@@ -564,6 +764,24 @@ struct TeleprompterSettings: View {
         let newIdx = max(0, service.pages.count - 1)
         editingPageIndex = newIdx
         editingPageText = service.pages[newIdx]
+        originalPageText = ""
+        triggerHaptic()
+
+        PageEditorWindowController.shared.show(
+            pageIndex: newIdx,
+            text: Binding(
+                get: { editingPageText },
+                set: { editingPageText = $0 }
+            ),
+            service: service,
+            dictation: dictation,
+            onCancel: {
+                closePageEditor(save: false)
+            },
+            onDone: {
+                closePageEditor(save: true)
+            }
+        )
     }
 
     private func duplicatePage(at index: Int) {
@@ -574,6 +792,7 @@ struct TeleprompterSettings: View {
         let copy = service.pages[index]
         service.pages.insert(copy, at: index + 1)
         service.savePreferences()
+        triggerHaptic()
     }
 
     private func deletePage(at index: Int) {
@@ -603,6 +822,7 @@ struct TeleprompterSettings: View {
                 Button("Copy Link") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(urlStr, forType: .string)
+                    triggerHaptic()
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -639,6 +859,7 @@ struct TeleprompterSettings: View {
                 Button("Copy Link") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(urlStr, forType: .string)
+                    triggerHaptic()
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -681,6 +902,7 @@ struct TeleprompterSettings: View {
         if panel.runModal() == .OK, let url = panel.url {
             do {
                 try service.importPPTX(url: url)
+                triggerHaptic()
             } catch {
                 importErrorMessage = error.localizedDescription
                 showingImportError = true
@@ -701,19 +923,97 @@ struct TeleprompterSettings: View {
     }
 }
 
-// MARK: - Dedicated Page Editor Dialog
+// MARK: - Dedicated Page Editor Window Controller (Movable & Resizable)
+
+final class PageEditorWindowController: NSWindowController, NSWindowDelegate {
+    static let shared = PageEditorWindowController()
+
+    private var onDoneCallback: (() -> Void)?
+    private var onCancelCallback: (() -> Void)?
+    private var isDismissing: Bool = false
+
+    convenience init() {
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 660, height: 520),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        panel.titlebarAppearsTransparent = true
+        panel.titleVisibility = .hidden
+        panel.isMovableByWindowBackground = true
+        panel.minSize = NSSize(width: 540, height: 400)
+        panel.maxSize = NSSize(width: 920, height: 820)
+        panel.isReleasedWhenClosed = false
+        panel.level = .floating
+        panel.standardWindowButton(.closeButton)?.isHidden = true
+        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        panel.standardWindowButton(.zoomButton)?.isHidden = true
+
+        self.init(window: panel)
+        panel.delegate = self
+    }
+
+    func show(
+        pageIndex: Int,
+        text: Binding<String>,
+        service: TeleprompterService,
+        dictation: DictationManager,
+        onCancel: @escaping () -> Void,
+        onDone: @escaping () -> Void
+    ) {
+        self.isDismissing = false
+        self.onCancelCallback = onCancel
+        self.onDoneCallback = onDone
+
+        let contentView = PageEditorDialog(
+            pageIndex: pageIndex,
+            text: text,
+            service: service,
+            dictation: dictation,
+            onCancel: { [weak self] in
+                guard let self = self, !self.isDismissing else { return }
+                self.isDismissing = true
+                self.window?.orderOut(nil)
+                onCancel()
+            },
+            onDone: { [weak self] in
+                guard let self = self, !self.isDismissing else { return }
+                self.isDismissing = true
+                self.window?.orderOut(nil)
+                onDone()
+            }
+        )
+
+        window?.contentView = NSHostingView(rootView: contentView)
+        window?.center()
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        if !isDismissing {
+            isDismissing = true
+            onCancelCallback?()
+        }
+    }
+}
+
+// MARK: - Dedicated Page Editor Dialog (macOS Component Action Dialog)
 
 struct PageEditorDialog: View {
     let pageIndex: Int
     @Binding var text: String
     @ObservedObject var service: TeleprompterService
     @ObservedObject var dictation: DictationManager
+    var onCancel: () -> Void
     var onDone: () -> Void
 
     @State private var caretPosition: Int? = nil
     @State private var editorCaretPosition: Int = 0
     @State private var dictationHighlightRange: NSRange? = nil
     @State private var highlightClearTimer: Timer?
+    @State private var isHoveringControls: Bool = false
 
     @State private var segmentStart: Int = 0
     @State private var segmentLength: Int = 0
@@ -736,55 +1036,100 @@ struct PageEditorDialog: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header bar
-            HStack(spacing: 12) {
-                Text("Page \(pageIndex + 1) Script")
-                    .font(.headline)
+            // MARK: - Top Header Row: Window Buttons, Centered Title, Cue & Dictate on Right
+            ZStack {
+                // Centered Page Title
+                Text("Page \(pageIndex + 1) Script & Notes")
+                    .font(.system(size: 13, weight: .semibold))
 
-                Menu {
-                    Button("[PAUSE]") { insertCue("PAUSE") }
-                    Button("[LOOK AT CAMERA]") { insertCue("LOOK AT CAMERA") }
-                    Button("[SPEED UP]") { insertCue("SPEED UP") }
-                    Button("[SLOW DOWN]") { insertCue("SLOW DOWN") }
-                    Button("[SMILE]") { insertCue("SMILE") }
-                    Button("[TAKE A BREATH]") { insertCue("TAKE A BREATH") }
-                } label: {
-                    Label("Insert Cue", systemImage: "sparkles")
-                }
-                .menuStyle(.borderedButton)
+                HStack(spacing: 12) {
+                    // macOS traffic lights style dots
+                    HStack(spacing: 7) {
+                        Circle()
+                            .fill(Color(red: 1.0, green: 0.38, blue: 0.35))
+                            .frame(width: 12, height: 12)
+                            .overlay(
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 7, weight: .bold))
+                                    .foregroundStyle(Color.black.opacity(0.55))
+                                    .opacity(isHoveringControls ? 1 : 0)
+                            )
+                            .onTapGesture {
+                                onCancel()
+                            }
+                            .help("Close & Discard")
 
-                Button {
-                    toggleDictation()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: dictation.isRecording ? "stop.circle.fill" : "mic.fill")
-                            .foregroundStyle(dictation.isRecording ? .red : .primary)
-                        Text(dictation.isRecording ? "Listening..." : "Dictate")
-                        if dictation.isRecording {
-                            DictationWaveformView(levels: dictation.audioLevels)
+                        Circle()
+                            .fill(Color(red: 1.0, green: 0.76, blue: 0.2))
+                            .frame(width: 12, height: 12)
+                            .overlay(
+                                Image(systemName: "minus")
+                                    .font(.system(size: 7, weight: .bold))
+                                    .foregroundStyle(Color.black.opacity(0.55))
+                                    .opacity(isHoveringControls ? 1 : 0)
+                            )
+                            .onTapGesture {
+                                PageEditorWindowController.shared.window?.miniaturize(nil)
+                            }
+                            .help("Minimize")
+
+                        Circle()
+                            .fill(Color(red: 0.2, green: 0.8, blue: 0.35))
+                            .frame(width: 12, height: 12)
+                            .overlay(
+                                Image(systemName: "plus")
+                                    .font(.system(size: 6, weight: .bold))
+                                    .foregroundStyle(Color.black.opacity(0.55))
+                                    .opacity(isHoveringControls ? 1 : 0)
+                            )
+                            .onTapGesture {
+                                PageEditorWindowController.shared.window?.zoom(nil)
+                            }
+                            .help("Zoom")
+                    }
+                    .onHover { isHoveringControls = $0 }
+
+                    Spacer()
+
+                    // Top Right: Cue Menu & Dictate Button
+                    HStack(spacing: 8) {
+                        Menu {
+                            Button("[PAUSE]") { insertCue("PAUSE") }
+                            Button("[LOOK AT CAMERA]") { insertCue("LOOK AT CAMERA") }
+                            Button("[SPEED UP]") { insertCue("SPEED UP") }
+                            Button("[SLOW DOWN]") { insertCue("SLOW DOWN") }
+                            Button("[SMILE]") { insertCue("SMILE") }
+                            Button("[TAKE A BREATH]") { insertCue("TAKE A BREATH") }
+                        } label: {
+                            Label("Cue", systemImage: "sparkles")
                         }
+                        .menuStyle(.borderedButton)
+                        .controlSize(.small)
+
+                        Button {
+                            toggleDictation()
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: dictation.isRecording ? "stop.circle.fill" : "mic.fill")
+                                    .foregroundStyle(dictation.isRecording ? .red : .primary)
+                                Text(dictation.isRecording ? "Listening" : "Dictate")
+                                if dictation.isRecording {
+                                    DictationWaveformView(levels: dictation.audioLevels)
+                                }
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
                 }
-                .buttonStyle(.bordered)
-
-                Spacer()
-
-                Button("Done") {
-                    if dictation.isRecording {
-                        stopDictation()
-                    }
-                    onDone()
-                }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
             .background(Color(NSColor.windowBackgroundColor))
 
             Divider()
 
-            // Highlighting Text Editor with Undo, Cut, Copy, Paste
+            // MARK: - Text Area with Native Vertical Scrollbar
             HighlightingTextEditor(
                 text: $text,
                 font: service.fontFamily.nsFont(ofSize: service.fontSize.pointSize),
@@ -799,42 +1144,66 @@ struct PageEditorDialog: View {
 
             Divider()
 
-            // Shifted statistics bar (0 word, reading time, characters)
-            HStack(spacing: 20) {
-                HStack(spacing: 5) {
-                    Image(systemName: "text.word.spacing")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Text("\(wordsCount) words")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            // MARK: - Bottom Bar: Words, Characters, Reading Time on Left; Cancel & Done on Right
+            HStack(spacing: 16) {
+                HStack(spacing: 14) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "text.word.spacing")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Text("\(wordsCount) words")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
-                HStack(spacing: 5) {
-                    Image(systemName: "character")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Text("\(text.count) characters")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                    HStack(spacing: 4) {
+                        Image(systemName: "character")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Text("\(text.count) characters")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
-                HStack(spacing: 5) {
-                    Image(systemName: "clock")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Text("\(estimatedReadingTimeText) est. reading time")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Text("\(estimatedReadingTimeText)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Spacer()
+
+                HStack(spacing: 8) {
+                    Button("Cancel") {
+                        if dictation.isRecording {
+                            stopDictation()
+                        }
+                        onCancel()
+                    }
+                    .keyboardShortcut(.cancelAction)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Button("Done") {
+                        if dictation.isRecording {
+                            stopDictation()
+                        }
+                        onDone()
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(Color(NSColor.windowBackgroundColor))
         }
-        .frame(minWidth: 580, idealWidth: 640, minHeight: 460, idealHeight: 520)
+        .frame(minWidth: 540, idealWidth: 660, maxWidth: 920, minHeight: 400, idealHeight: 520, maxHeight: 820)
     }
 
     private func insertCue(_ cue: String) {
@@ -842,6 +1211,7 @@ struct PageEditorDialog: View {
         let insertion = " [\(cue)] "
         text.insert(contentsOf: insertion, at: text.index(text.startIndex, offsetBy: caret))
         caretPosition = caret + insertion.count
+        triggerHaptic()
     }
 
     private func toggleDictation() {
@@ -850,6 +1220,7 @@ struct PageEditorDialog: View {
         } else {
             startDictation()
         }
+        triggerHaptic()
     }
 
     private func startDictation() {
