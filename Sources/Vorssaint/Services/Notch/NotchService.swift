@@ -2724,9 +2724,11 @@ final class NotchService: ObservableObject {
         }
         var presented = expanded ? expandedGeometry : geometry
         presented.surfaceShift = surfaceShift
+        let isRunningTeleprompter = selected == .teleprompter && teleprompterActivityIsRunning
         windowHost?.present(size: size, geometry: presented, animated: animated,
                             transitionContent: contentTransition,
-                            quickAccess: expanded && captureControls == nil && !showingCommandBar && !access.buttons.isEmpty
+                            quickAccess: expanded && captureControls == nil && !showingCommandBar
+                                && !isRunningTeleprompter && !access.buttons.isEmpty
                                 ? access : nil,
                             revealFromHidden: !hiddenInFullscreen && captureControls == nil
                                 && UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
