@@ -102,16 +102,16 @@ struct SpeechScrollView: View {
             }
             .offset(y: scrollOffset)
             .animation(smoothScroll ? .linear(duration: 0.08) : .easeOut(duration: 0.35), value: scrollOffset)
-            .onChange(of: geo.size.height) { newHeight in
+            .onChange(of: geo.size.height) { _, newHeight in
                 containerHeight = newHeight
                 recalculateTracking(containerHeight: newHeight)
             }
-            .onChange(of: highlightedCharCount) { _ in
+            .onChange(of: highlightedCharCount) {
                 if !smoothScroll {
                     recalculateTracking(containerHeight: containerHeight)
                 }
             }
-            .onChange(of: smoothWordProgress) { _ in
+            .onChange(of: smoothWordProgress) {
                 if smoothScroll {
                     recalculateTracking(containerHeight: containerHeight)
                 }

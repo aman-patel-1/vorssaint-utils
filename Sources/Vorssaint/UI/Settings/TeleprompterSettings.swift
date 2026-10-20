@@ -25,7 +25,7 @@ struct TeleprompterSettings: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .onChange(of: service.guidanceMode) { _ in
+                    .onChange(of: service.guidanceMode) {
                         service.savePreferences()
                     }
 
@@ -35,17 +35,17 @@ struct TeleprompterSettings: View {
 
                     if service.guidanceMode != .wordTracking {
                         Divider()
-                        HStack {
-                            Text("Scroll Speed")
-                            Spacer()
-                            Text(String(format: "%.1f words/sec", service.scrollSpeed))
-                                .foregroundStyle(.secondary)
-                        }
-                        Slider(value: $service.scrollSpeed, in: 0.5...8.0, step: 0.5) {
-                            Text("Speed")
-                        }
-                        .onChange(of: service.scrollSpeed) { _ in
-                            service.savePreferences()
+                        VStack(spacing: 6) {
+                            HStack {
+                                Text("Scroll Speed")
+                                Spacer()
+                                Text(String(format: "%.1f words/sec", service.scrollSpeed))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: $service.scrollSpeed, in: 0.5...8.0, step: 0.5)
+                                .onChange(of: service.scrollSpeed) {
+                                    service.savePreferences()
+                                }
                         }
                     }
                 }
@@ -58,7 +58,7 @@ struct TeleprompterSettings: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .onChange(of: service.overlayMode) { _ in
+                    .onChange(of: service.overlayMode) {
                         service.savePreferences()
                     }
 
@@ -74,7 +74,7 @@ struct TeleprompterSettings: View {
                         }
                         .pickerStyle(.menu)
                         .frame(width: 140)
-                        .onChange(of: service.fontFamily) { _ in
+                        .onChange(of: service.fontFamily) {
                             service.savePreferences()
                         }
                     }
@@ -89,7 +89,7 @@ struct TeleprompterSettings: View {
                         }
                         .pickerStyle(.segmented)
                         .frame(width: 180)
-                        .onChange(of: service.fontSize) { _ in
+                        .onChange(of: service.fontSize) {
                             service.savePreferences()
                         }
                     }
@@ -128,7 +128,7 @@ struct TeleprompterSettings: View {
                         }
                         .pickerStyle(.menu)
                         .frame(width: 200)
-                        .onChange(of: service.selectedMicUID) { _ in
+                        .onChange(of: service.selectedMicUID) {
                             service.savePreferences()
                         }
                     }
@@ -144,7 +144,7 @@ struct TeleprompterSettings: View {
                         }
                         .pickerStyle(.menu)
                         .frame(width: 200)
-                        .onChange(of: service.speechLocale) { _ in
+                        .onChange(of: service.speechLocale) {
                             service.savePreferences()
                         }
                     }
@@ -165,7 +165,7 @@ struct TeleprompterSettings: View {
                 // Remote Connection Card
                 SettingsCard(title: "Remote Prompter (Phone / Tablet / Browser)") {
                     Toggle("Enable Local Network Remote", isOn: $service.remoteServerEnabled)
-                        .onChange(of: service.remoteServerEnabled) { enabled in
+                        .onChange(of: service.remoteServerEnabled) { _, enabled in
                             service.savePreferences()
                             if enabled {
                                 service.remoteServer.start()

@@ -257,8 +257,10 @@ final class TeleprompterService: ObservableObject {
     private func startAutoScrollTimer() {
         autoScrollTimer?.invalidate()
         autoScrollTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self, self.isRunning, !self.isPaused else { return }
-            self.tickAutoScroll()
+            MainActor.assumeIsolated {
+                guard let self, self.isRunning, !self.isPaused else { return }
+                self.tickAutoScroll()
+            }
         }
     }
 
