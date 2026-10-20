@@ -21,7 +21,7 @@ private struct TeleprompterPreviewSettingsSnapshot: Equatable {
         values = [
             service.fontFamily.rawValue, service.fontSize.rawValue,
             service.highlightColor.rawValue, service.cueColor.rawValue, service.cueBrightness.rawValue,
-            service.guidanceMode.rawValue, String(service.scrollSpeed),
+            service.guidanceMode.rawValue,
             service.readingPosition.rawValue, String(service.showParagraphDividers),
             String(service.showLastSpokenWords), String(service.windowWidth), String(service.windowHeight),
             String(service.showElapsedTime),
@@ -276,6 +276,8 @@ struct TeleprompterSettings: View {
     @State private var importAlertTitle = "Import Failed"
     @State private var lastPreviewSettings: TeleprompterPreviewSettingsSnapshot?
     @State private var previewRefreshTask: Task<Void, Never>?
+    @State private var isEditingScrollSpeed = false
+    @State private var lastScrollSpeedHapticStep: Int?
 
     private var strings: TeleprompterStrings {
         FeatureStrings.teleprompter(l10n.language)
@@ -523,8 +525,13 @@ struct TeleprompterSettings: View {
                             .frame(width: 110, alignment: .leading)
                         Slider(value: $service.scrollSpeed, in: TeleprompterService.scrollSpeedRange, step: 0.05,
                                onEditingChanged: { editing in
+                            isEditingScrollSpeed = editing
+                            if editing {
+                                lastScrollSpeedHapticStep = Int((service.scrollSpeed * 4).rounded())
+                            } else {
+                                lastScrollSpeedHapticStep = nil
+                            }
                             if !editing {
-                                triggerHaptic()
                                 service.savePreferences()
                             }
                         })
@@ -746,6 +753,20 @@ struct TeleprompterSettings: View {
                     return
                 }
                 guard !Task.isCancelled, !service.isRunning else { return }
+                service.previewInNotch(autoCloseAfter: 4)
+            }
+        }
+        .onChange(of: service.scrollSpeed) { _, speed in
+            if isEditingScrollSpeed {
+                let step = Int((speed * 4).rounded())
+                if step != lastScrollSpeedHapticStep {
+                    lastScrollSpeedHapticStep = step
+                    triggerHaptic()
+                }
+            }
+            guard !service.isRunning, NotchSupport.isEnabled() else { return }
+            previewRefreshTask?.cancel()
+            previewRefreshTask = Task { @MainActor in
                 service.previewInNotch(autoCloseAfter: 4)
             }
         }

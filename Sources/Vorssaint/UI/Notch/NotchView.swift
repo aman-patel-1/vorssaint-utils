@@ -56,6 +56,13 @@ struct NotchView: View {
             .onChange(of: contrast) {
                 DispatchQueue.main.async { service.refreshPresentation(animated: false) }
             }
+            // Teleprompter size sliders publish at drag frequency. Keep the
+            // native panel frame in lockstep with the SwiftUI content and
+            // skip the island's open/close animation while it is being resized.
+            .onChange(of: service.teleprompterSurfaceSize) { _, _ in
+                guard service.selected == .teleprompter else { return }
+                DispatchQueue.main.async { service.refreshPresentation(animated: false) }
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .environment(\.colorScheme, .dark)
             .environment(\.notchPresentation, true)
