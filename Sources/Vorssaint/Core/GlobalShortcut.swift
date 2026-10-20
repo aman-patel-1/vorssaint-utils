@@ -237,8 +237,8 @@ struct GlobalShortcut: Equatable, Hashable {
     // layer, matching how the system numbers its own capture keys.
     static let screenRecorderDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_5),
                                                       modifiers: [.control, .option, .command])
-    // T for teleprompter, on the same free control-option-command layer.
-    static let teleprompterDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_T),
+    // B for broadcast, on the same free control-option-command layer.
+    static let teleprompterDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_B),
                                                     modifiers: [.control, .option, .command])
 
     static func saved(for key: String, fallback: GlobalShortcut) -> GlobalShortcut {

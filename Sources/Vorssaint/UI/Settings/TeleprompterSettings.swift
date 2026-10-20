@@ -335,6 +335,8 @@ struct TeleprompterSettings: View {
                 Text(strings.title)
             }
 
+            .settingsSectionAnchor(.teleprompter, cornerRadius: 16)
+
             // MARK: - 2. Script Studio & Notes Section
             Section {
                 ScrollView(.vertical, showsIndicators: true) {
@@ -535,7 +537,7 @@ struct TeleprompterSettings: View {
                                 service.savePreferences()
                             }
                         })
-                        Text(String(format: "%.1fx", service.scrollSpeed))
+                        Text(String(format: "%.1fx", locale: l10n.language.formattingLocale(), service.scrollSpeed))
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(.secondary)
                             .frame(width: 50, alignment: .trailing)

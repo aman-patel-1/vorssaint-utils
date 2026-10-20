@@ -384,7 +384,7 @@ extension AppFeature {
         case .fanControl:
             return FeatureSettingsDestination(.monitor, sectionAnchor: .fanControl)
         case .teleprompter:
-            return FeatureSettingsDestination(.teleprompter)
+            return FeatureSettingsDestination(.teleprompter, sectionAnchor: .teleprompter)
         }
     }
 }

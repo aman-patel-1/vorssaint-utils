@@ -51,7 +51,7 @@ struct NotchTeleprompterView: View {
                         Text("Preview")
                         if service.guidanceMode != .wordTracking {
                             Text("·")
-                            Text(String(format: "%.1fx", service.scrollSpeed))
+                            Text(String(format: "%.1fx", locale: l10n.language.formattingLocale(), service.scrollSpeed))
                                 .monospacedDigit()
                         }
                     }
@@ -64,12 +64,12 @@ struct NotchTeleprompterView: View {
                         .foregroundStyle(.white.opacity(0.65))
                         .lineLimit(1)
                 } else if service.guidanceMode != .wordTracking {
-                    Text(String(format: "%.1fx", service.scrollSpeed))
+                    Text(String(format: "%.1fx", locale: l10n.language.formattingLocale(), service.scrollSpeed))
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.65))
                         .lineLimit(1)
                         .accessibilityLabel("Scroll speed")
-                        .accessibilityValue(String(format: "%.1fx", service.scrollSpeed))
+                        .accessibilityValue(String(format: "%.1fx", locale: l10n.language.formattingLocale(), service.scrollSpeed))
                 }
             }
         }, trailing: {
