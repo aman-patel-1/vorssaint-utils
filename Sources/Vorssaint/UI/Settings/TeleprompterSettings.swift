@@ -475,7 +475,7 @@ struct TeleprompterSettings: View {
                 Toggle(isOn: $service.keepScreenAwake) {
                     HStack(spacing: 4) {
                         Text("Keep screen awake while teleprompter is active")
-                        InfoTip(text: "Prevents the display from sleeping during an active teleprompter session using an IOKit power assertion.")
+                        InfoTip(text: "Prevents the display from sleeping during an active teleprompter session.")
                     }
                 }
                 .onChange(of: service.keepScreenAwake) { _, _ in service.savePreferences() }

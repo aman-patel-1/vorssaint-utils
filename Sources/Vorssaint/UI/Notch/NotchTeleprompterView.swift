@@ -215,57 +215,8 @@ struct NotchTeleprompterView: View {
 
     private var activePrompterView: some View {
         VStack(spacing: 8) {
-            // Header: controls & status
+            // Header: page status and editing tools
             HStack(spacing: 12) {
-                // Play / Pause Toggle
-                Button {
-                    service.toggle()
-                    triggerHaptic()
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: service.isRunning && !service.isPaused ? "pause.fill" : "play.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text(service.isRunning && !service.isPaused ? "Pause" : "Resume")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.white.opacity(0.16))
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-
-                // Stop Button
-                Button {
-                    service.stop()
-                    showingPageCards = true
-                    triggerHaptic()
-                } label: {
-                    Image(systemName: "stop.fill")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .frame(width: 24, height: 24)
-                        .background(Color.red.opacity(0.25))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .help("Stop Teleprompter")
-
-                // Live Audio Waveform
-                if service.isRunning && !service.isPaused {
-                    let waveformLevels = Array(recognizer.audioLevels.suffix(20))
-                    HStack(spacing: 2) {
-                        ForEach(waveformLevels.indices, id: \.self) { idx in
-                            let lvl = waveformLevels[idx]
-                            let normalized = pow(lvl, 0.6)
-                            RoundedRectangle(cornerRadius: 1)
-                                .fill(service.highlightColor.color.opacity(0.85))
-                                .frame(width: 2, height: max(3.5, normalized * 18))
-                        }
-                    }
-                    .frame(height: 18)
-                }
-
                 Spacer()
 
                 // Page indicator
@@ -354,6 +305,10 @@ struct NotchTeleprompterView: View {
 
             // Footer bar
             HStack(spacing: 12) {
+                if service.isRunning && !service.isPaused && recognizer.isListening {
+                    liveWaveform
+                }
+
                 if pagesList.count > 1 {
                     Button {
                         service.previousPage()
@@ -389,10 +344,57 @@ struct NotchTeleprompterView: View {
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.6))
                 }
+
+                if service.isRunning {
+                    Button {
+                        service.toggle()
+                        triggerHaptic()
+                    } label: {
+                        Image(systemName: service.isPaused ? "play.fill" : "pause.fill")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 28, height: 28)
+                            .background(Color.white.opacity(0.14), in: Circle())
+                    }
+                    .buttonStyle(NotchButtonStyle(cornerRadius: 14))
+                    .help(service.isPaused ? FeatureStrings.teleprompter(l10n.language).resume
+                                            : FeatureStrings.teleprompter(l10n.language).pause)
+                    .accessibilityLabel(service.isPaused ? FeatureStrings.teleprompter(l10n.language).resume
+                                                         : FeatureStrings.teleprompter(l10n.language).pause)
+
+                    Button {
+                        service.stop()
+                        showingPageCards = true
+                        triggerHaptic()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.red.opacity(0.9))
+                            .frame(width: 28, height: 28)
+                            .background(Color.red.opacity(0.18), in: Circle())
+                    }
+                    .buttonStyle(NotchButtonStyle(cornerRadius: 14))
+                    .help(FeatureStrings.teleprompter(l10n.language).stop)
+                    .accessibilityLabel(FeatureStrings.teleprompter(l10n.language).stop)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 6)
         }
+    }
+
+    private var liveWaveform: some View {
+        let waveformLevels = Array(recognizer.audioLevels.suffix(20))
+        return HStack(spacing: 2) {
+            ForEach(waveformLevels.indices, id: \.self) { idx in
+                let normalized = pow(waveformLevels[idx], 0.6)
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(service.highlightColor.color.opacity(0.85))
+                    .frame(width: 2, height: max(3.5, normalized * 18))
+            }
+        }
+        .frame(height: 18)
+        .accessibilityLabel(FeatureStrings.teleprompter(l10n.language).listening)
     }
 
     // MARK: - Helpers
