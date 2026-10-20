@@ -122,9 +122,10 @@ struct DictationWaveformView: View {
     var body: some View {
         HStack(alignment: .center, spacing: 2) {
             ForEach(0..<min(20, levels.count), id: \.self) { idx in
+                let normalized = pow(levels[idx], 0.6)
                 RoundedRectangle(cornerRadius: 1)
                     .fill(color)
-                    .frame(width: 2, height: max(3, levels[idx] * 16))
+                    .frame(width: 2.5, height: max(3.5, normalized * 16))
             }
         }
         .frame(height: 16)
@@ -411,26 +412,23 @@ struct TeleprompterSettings: View {
                 if service.guidanceMode != .wordTracking {
                     HStack(spacing: 8) {
                         Text("Scroll Speed")
-                            .frame(width: 130, alignment: .leading)
+                            .frame(width: 110, alignment: .leading)
                         Spacer()
-                        HStack(spacing: 6) {
-                            Text("Slower")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
-                            Slider(value: $service.scrollSpeed, in: 1.0...6.0, step: 0.1)
-                                .frame(width: 130)
-                                .onChange(of: service.scrollSpeed) { _, _ in
-                                    triggerHaptic()
-                                    service.savePreferences()
-                                }
-                            Text("Faster")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
-                            Text(String(format: "%.1fx", service.scrollSpeed))
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 38, alignment: .trailing)
-                        }
+                        Text("Slower")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Slider(value: $service.scrollSpeed, in: 1.0...6.0)
+                            .frame(minWidth: 160, maxWidth: 220)
+                            .onChange(of: service.scrollSpeed) { _, _ in
+                                service.savePreferences()
+                            }
+                        Text("Faster")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Text(String(format: "%.1fx", service.scrollSpeed))
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 36, alignment: .trailing)
                     }
                 }
 
@@ -1381,7 +1379,20 @@ struct PageEditorDialog: View {
     }
 
     private func insertCue(_ cue: String) {
-        cueToInsert = cue
+        let tag = "[\(cue)]"
+        let caret = min(max(0, editorCaretPosition), text.count)
+
+        let needsLeadingSpace = caret > 0 && text[text.index(text.startIndex, offsetBy: caret - 1)] != " " && text[text.index(text.startIndex, offsetBy: caret - 1)] != "\n"
+        let needsTrailingSpace = caret < text.count && text[text.index(text.startIndex, offsetBy: caret)] != " " && text[text.index(text.startIndex, offsetBy: caret)] != "\n"
+
+        let toInsert = (needsLeadingSpace ? " " : "") + tag + (needsTrailingSpace ? " " : "")
+
+        let insertIndex = text.index(text.startIndex, offsetBy: caret)
+        text.insert(contentsOf: toInsert, at: insertIndex)
+
+        let newCaret = caret + toInsert.count
+        editorCaretPosition = newCaret
+        caretPosition = newCaret
         triggerHaptic()
     }
 

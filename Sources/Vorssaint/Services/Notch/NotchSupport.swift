@@ -1280,7 +1280,7 @@ enum NotchControlSetupRequirement: Equatable {
 }
 
 enum NotchControlItem: String, CaseIterable, Identifiable {
-    case volume, brightness, keyboardLight, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad
+    case volume, brightness, keyboardLight, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad, teleprompter
     static let defaultHidden = "keyboardLight,microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad"
     var id: String { rawValue }
 
@@ -1311,6 +1311,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .music: return NotchModule.music.symbol
         case .timer: return NotchModule.timer.symbol
         case .calendar: return NotchModule.calendar.symbol
+        case .teleprompter: return NotchModule.teleprompter.symbol
         }
     }
 
@@ -1330,6 +1331,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .music: return .page(.music, feature: nil)
         case .timer: return .page(.timer, feature: .notchTimer)
         case .calendar: return .page(.calendar, feature: .notchCalendar)
+        case .teleprompter: return .page(.teleprompter, feature: .teleprompter)
         }
     }
 
@@ -2768,13 +2770,20 @@ struct NotchGeometry: Equatable {
             case .agents:
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
+            case .teleprompter:
+                let prompterHeight = CGFloat(TeleprompterService.shared.windowHeight)
+                contentHeight = max(budget, prompterHeight)
             // Lists and previews fill the chosen content budget.
-            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch, .teleprompter:
+            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch:
                 contentHeight = budget
             }
         }
         var preferredHeight = headerTopInset + headerChromeHeight + contentHeight
-        if layout == .custom { preferredHeight = min(preferredHeight, customHeight) }
+        if module == .teleprompter {
+            preferredHeight = max(preferredHeight, headerTopInset + headerChromeHeight + CGFloat(TeleprompterService.shared.windowHeight))
+        } else if layout == .custom {
+            preferredHeight = min(preferredHeight, customHeight)
+        }
         return CGSize(width: expandedWidth,
                       height: min(preferredHeight, screen.height - 48 - quickAccessBottomInset))
     }

@@ -148,6 +148,9 @@ final class DictationManager: ObservableObject {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         request.taskHint = .dictation
+        if #available(macOS 13.0, *) {
+            request.addsPunctuation = true
+        }
 
         requestLock.lock()
         recognitionRequest = request
@@ -175,7 +178,7 @@ final class DictationManager: ObservableObject {
                 sum += channelData[i] * channelData[i]
             }
             let rms = sqrt(sum / Float(max(frameLength, 1)))
-            let level = CGFloat(min(rms * 5.0, 1.0))
+            let level = CGFloat(min(Double(rms * 12.0), 1.0))
 
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
@@ -227,6 +230,9 @@ final class DictationManager: ObservableObject {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         request.taskHint = .dictation
+        if #available(macOS 13.0, *) {
+            request.addsPunctuation = true
+        }
 
         requestLock.lock()
         recognitionRequest = request

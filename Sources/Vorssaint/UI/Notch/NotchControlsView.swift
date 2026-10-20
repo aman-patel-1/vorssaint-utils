@@ -112,6 +112,8 @@ struct NotchControlsView: View {
             NotchActionTile(symbol: item.symbol, title: item.title(l10n), action: service.openScratchpad)
         case .timer: NotchTimerTile(service: service)
         case .calendar: NotchCalendarTile(service: service)
+        case .teleprompter:
+            NotchActionTile(symbol: item.symbol, title: item.title(l10n)) { service.select(.teleprompter) }
         case .volume, .brightness, .keyboardLight, .music: EmptyView()
         }
     }
@@ -135,6 +137,7 @@ extension NotchControlItem {
         case .music: return NotchModule.music.title(l10n.language)
         case .timer: return NotchModule.timer.title(l10n.language)
         case .calendar: return NotchModule.calendar.title(l10n.language)
+        case .teleprompter: return FeatureStrings.teleprompter(l10n.language).title
         }
     }
 }

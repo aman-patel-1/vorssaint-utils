@@ -73,6 +73,8 @@ struct SpeechScrollView: View {
     var smoothWordProgress: Double = 0
     var isListening: Bool = true
     var paragraphBreakBeforeWordIndices: Set<Int> = []
+    var readingPosition: TeleprompterReadingPosition = .centered
+    var showLastSpokenWords: Bool = true
 
     @State private var scrollOffset: CGFloat = 0
     @State private var manualOffset: CGFloat = 0
@@ -82,6 +84,14 @@ struct SpeechScrollView: View {
     @State private var hasAppliedTrackingTarget = false
     @State private var anchoredLayoutWidth: CGFloat = 0
     @State private var anchoredParagraphBreakBeforeWordIndices: Set<Int> = []
+
+    private var readingAnchorRatio: CGFloat {
+        switch readingPosition {
+        case .top: return 0.25
+        case .centered: return 0.45
+        case .bottom: return 0.70
+        }
+    }
 
     private var scrollOffsetAnimation: Animation? {
         smoothScroll ? .linear(duration: 0.06) : .easeOut(duration: 0.45)
@@ -98,6 +108,7 @@ struct SpeechScrollView: View {
                 cueUnreadOpacity: cueUnreadOpacity,
                 cueReadOpacity: cueReadOpacity,
                 highlightWords: !smoothScroll,
+                showLastSpokenWords: showLastSpokenWords,
                 paragraphBreakBeforeWordIndices: paragraphBreakBeforeWordIndices,
                 containerWidth: geo.size.width,
                 viewportHeight: geo.size.height,
@@ -134,10 +145,15 @@ struct SpeechScrollView: View {
                 hasAppliedTrackingTarget = false
                 if highlightedCharCount == 0 && smoothWordProgress == 0 {
                     let lineHeight = font.pointSize * 1.4
-                    scrollOffset = newHeight * 0.5 - lineHeight * 0.5
+                    scrollOffset = newHeight * readingAnchorRatio - lineHeight * 0.5
                 } else if isListening {
                     recalculateTracking(containerHeight: newHeight)
                 }
+            }
+            .onChange(of: readingPosition) { _, _ in
+                manualOffset = 0
+                hasAppliedTrackingTarget = false
+                recalculateTracking(containerHeight: containerHeight)
             }
             .onChange(of: highlightedCharCount) { _, _ in
                 if isListening && !smoothScroll {
@@ -159,7 +175,7 @@ struct SpeechScrollView: View {
             }
             .onChange(of: words) { _, _ in
                 let lineHeight = font.pointSize * 1.4
-                scrollOffset = containerHeight * 0.5 - lineHeight * 0.5
+                scrollOffset = containerHeight * readingAnchorRatio - lineHeight * 0.5
                 manualOffset = 0
                 wordYPositions = [:]
                 allowsNextBackwardTrackingUpdate = false
@@ -170,7 +186,7 @@ struct SpeechScrollView: View {
             .onAppear {
                 containerHeight = geo.size.height
                 let lineHeight = font.pointSize * 1.4
-                scrollOffset = containerHeight * 0.5 - lineHeight * 0.5
+                scrollOffset = containerHeight * readingAnchorRatio - lineHeight * 0.5
             }
         }
         .clipped()
@@ -178,7 +194,7 @@ struct SpeechScrollView: View {
 
     private func recalculateTracking(containerHeight: CGFloat) {
         guard containerHeight > 0 else { return }
-        let center = containerHeight * 0.45
+        let center = containerHeight * readingAnchorRatio
 
         if smoothScroll {
             let bottomAnchor = containerHeight - 24
@@ -199,7 +215,7 @@ struct SpeechScrollView: View {
 
     private func repositionTracking(toWordIndex wordIndex: Int) {
         guard let wordY = wordYPositions[wordIndex] else { return }
-        let center = containerHeight * 0.45
+        let center = containerHeight * readingAnchorRatio
         applyTrackingTarget(center - wordY, force: true)
     }
 
@@ -249,6 +265,7 @@ struct WordFlowLayout: View {
     var cueUnreadOpacity: Double
     var cueReadOpacity: Double
     var highlightWords: Bool = true
+    var showLastSpokenWords: Bool = true
     var paragraphBreakBeforeWordIndices: Set<Int> = []
     var containerWidth: CGFloat
     var viewportHeight: CGFloat
@@ -421,7 +438,12 @@ struct WordFlowLayout: View {
                 ? highlightColor.opacity(0.85)
                 : highlightColor.opacity(0.35)
 
-            let wordColor: Color = isFullyLit ? highlightColor.opacity(0.4) : dimColor
+            let wordColor: Color
+            if isFullyLit {
+                wordColor = showLastSpokenWords ? highlightColor.opacity(0.4) : highlightColor.opacity(0.06)
+            } else {
+                wordColor = dimColor
+            }
 
             Text(item.word + " ")
                 .font(Font(font))

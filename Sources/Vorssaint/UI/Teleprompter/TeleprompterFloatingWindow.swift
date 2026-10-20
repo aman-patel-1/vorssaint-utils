@@ -85,6 +85,20 @@ final class TeleprompterFloatingWindowController: NSWindowController {
         panel.orderFrontRegardless()
     }
 
+    func updateFrame() {
+        guard let panel = window as? NSPanel, panel.isVisible else { return }
+        guard TeleprompterService.shared.overlayMode == .floating else { return }
+        let w = CGFloat(TeleprompterService.shared.windowWidth)
+        let h = CGFloat(TeleprompterService.shared.windowHeight)
+        var frame = panel.frame
+        let dw = w - frame.size.width
+        let dh = h - frame.size.height
+        frame.origin.x -= dw / 2
+        frame.origin.y -= dh / 2
+        frame.size = NSSize(width: w, height: h)
+        panel.setFrame(frame, display: true, animate: true)
+    }
+
     func hide() {
         window?.orderOut(nil)
     }
@@ -178,13 +192,18 @@ struct TeleprompterFloatingContentView: View {
                     highlightedCharCount: recognizer.recognizedCharCount,
                     font: service.fontFamily.nsFont(ofSize: service.fontSize.pointSize),
                     highlightColor: service.highlightColor.color,
+                    cueColor: service.cueColor.color,
+                    cueUnreadOpacity: service.cueBrightness.alpha * 0.35,
+                    cueReadOpacity: service.cueBrightness.alpha,
                     onWordTap: { offset in
                         service.jumpTo(charOffset: offset)
                     },
                     smoothScroll: service.guidanceMode != .wordTracking,
                     smoothWordProgress: service.timerWordProgress,
                     isListening: service.isRunning && !service.isPaused,
-                    paragraphBreakBeforeWordIndices: service.showParagraphDividers ? paragraphBreakWordIndices(in: service.currentScript) : []
+                    paragraphBreakBeforeWordIndices: service.showParagraphDividers ? paragraphBreakWordIndices(in: service.currentScript) : [],
+                    readingPosition: service.readingPosition,
+                    showLastSpokenWords: service.showLastSpokenWords
                 )
                 .padding(.horizontal, 14)
                 .padding(.bottom, 10)
@@ -192,6 +211,12 @@ struct TeleprompterFloatingContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
+        .onChange(of: service.windowWidth) { _, _ in
+            TeleprompterFloatingWindowController.shared.updateFrame()
+        }
+        .onChange(of: service.windowHeight) { _, _ in
+            TeleprompterFloatingWindowController.shared.updateFrame()
+        }
         .onExitCommand {
             if service.overlayMode == .fullscreen {
                 service.overlayMode = .floating
