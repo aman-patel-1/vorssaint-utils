@@ -22,6 +22,7 @@ final class TeleprompterService: ObservableObject {
     @Published private(set) var isPreviewingInNotch = false
     @Published private(set) var isPreviewingFloating = false
     @Published private(set) var previewWordProgress: Double = 0
+    @Published private(set) var previewPageIndex = 0
     @Published var isPaused: Bool = false
     @Published var text: String = "Welcome to Vorssaint Teleprompter.\n\nRead your script naturally while on camera. Words highlight in real time as you speak, powered by 100% on-device speech recognition."
     @Published var pages: [String] = []
@@ -49,7 +50,6 @@ final class TeleprompterService: ObservableObject {
         }
     }
     @Published var overlayMode: TeleprompterOverlayMode = .notch
-    @Published var previewOverlayMode: TeleprompterOverlayMode = .notch
     @Published var scrollSpeed: Double = 2.5 {
         didSet {
             let bounded = Self.clampedScrollSpeed(scrollSpeed)
@@ -111,13 +111,13 @@ final class TeleprompterService: ObservableObject {
     private var restoreFloatingAfterNotchPreview = false
     private var restartSpeechOnResume = false
 
-    static let previewScript = """
-        A quick brown fox jumps over the quiet fence, then follows the winding path toward the river. [PAUSE] The morning light catches every leaf as the breeze moves softly through the trees.
-
-        Take a slow breath, look toward the camera, and let the next idea arrive naturally. [LOOK AT CAMERA] Speak clearly, keep a comfortable pace, and leave a little space between each thought.
-
-        When the story reaches its final point, pause for a moment before continuing. A steady rhythm makes every sentence easier to follow. [SMILE]
-        """
+    static let previewPages = [
+        "A quick brown fox jumps over the quiet fence, then follows the winding path toward the river. [PAUSE] The morning light catches every leaf as the breeze moves softly through the trees.",
+        "Take a slow breath, look toward the camera, and let the next idea arrive naturally. [LOOK AT CAMERA] Speak clearly, keep a comfortable pace, and leave a little space between each thought.",
+        "When the story reaches its final point, pause for a moment before continuing. A steady rhythm makes every sentence easier to follow. [SMILE]"
+    ]
+    static let previewScript = previewPages.joined(separator: "\n\n")
+    var previewCurrentScript: String { Self.previewPages[previewPageIndex] }
 
     @Published var sessionStartTime: Date? = nil
     @Published var elapsedSeconds: Int = 0
@@ -218,10 +218,6 @@ final class TeleprompterService: ObservableObject {
            let ov = TeleprompterOverlayMode(rawValue: overlayStr) {
             overlayMode = ov
         }
-        if let previewOverlayStr = defaults.string(forKey: DefaultsKey.teleprompterPreviewOverlayMode),
-           let previewMode = TeleprompterOverlayMode(rawValue: previewOverlayStr) {
-            previewOverlayMode = previewMode
-        }
         let speed = defaults.double(forKey: DefaultsKey.teleprompterScrollSpeed)
         if speed > 0 {
             scrollSpeed = speed
@@ -299,6 +295,7 @@ final class TeleprompterService: ObservableObject {
             externalMirrorAxis = ma
         }
         externalScreenID = UInt32(defaults.integer(forKey: DefaultsKey.teleprompterExternalScreenID))
+        loadPlacementProfile(for: overlayMode)
     }
 
     func savePreferences() {
@@ -310,7 +307,6 @@ final class TeleprompterService: ObservableObject {
         defaults.set(currentPageIndex, forKey: DefaultsKey.teleprompterCurrentPageIndex)
         defaults.set(guidanceMode.rawValue, forKey: DefaultsKey.teleprompterGuidanceMode)
         defaults.set(overlayMode.rawValue, forKey: DefaultsKey.teleprompterOverlayMode)
-        defaults.set(previewOverlayMode.rawValue, forKey: DefaultsKey.teleprompterPreviewOverlayMode)
         defaults.set(scrollSpeed, forKey: DefaultsKey.teleprompterScrollSpeed)
         defaults.set(fontSize.rawValue, forKey: DefaultsKey.teleprompterFontSize)
         defaults.set(fontFamily.rawValue, forKey: DefaultsKey.teleprompterFontFamily)
@@ -335,13 +331,75 @@ final class TeleprompterService: ObservableObject {
         defaults.set(externalDisplayMode.rawValue, forKey: DefaultsKey.teleprompterExternalDisplayMode)
         defaults.set(externalMirrorAxis.rawValue, forKey: DefaultsKey.teleprompterExternalDisplayMirrorAxis)
         defaults.set(Int(externalScreenID), forKey: DefaultsKey.teleprompterExternalScreenID)
+        savePlacementProfile(for: overlayMode)
+    }
+
+    private func placementProfileKey(_ key: String, mode: TeleprompterOverlayMode) -> String {
+        "\(key).surface.\(mode.rawValue)"
+    }
+
+    private func savePlacementProfile(for mode: TeleprompterOverlayMode) {
+        let defaults = UserDefaults.standard
+        func set(_ value: Any, _ key: String) {
+            defaults.set(value, forKey: placementProfileKey(key, mode: mode))
+        }
+        set(fontFamily.rawValue, DefaultsKey.teleprompterFontFamily)
+        set(fontSize.rawValue, DefaultsKey.teleprompterFontSize)
+        set(highlightColor.rawValue, DefaultsKey.teleprompterHighlightColor)
+        set(cueColor.rawValue, DefaultsKey.teleprompterCueColor)
+        set(cueBrightness.rawValue, DefaultsKey.teleprompterCueBrightness)
+        set(guidanceMode.rawValue, DefaultsKey.teleprompterGuidanceMode)
+        set(scrollSpeed, DefaultsKey.teleprompterScrollSpeed)
+        set(readingPosition.rawValue, DefaultsKey.teleprompterReadingPosition)
+        set(showParagraphDividers, DefaultsKey.teleprompterShowParagraphDividers)
+        set(showLastSpokenWords, DefaultsKey.teleprompterShowLastSpokenWords)
+        set(keepScreenAwake, DefaultsKey.teleprompterKeepScreenAwake)
+        set(autoNextPage, DefaultsKey.teleprompterAutoNextPage)
+        set(windowWidth, DefaultsKey.teleprompterWidth)
+        set(windowHeight, DefaultsKey.teleprompterHeight)
+        set(overlayTransparency, DefaultsKey.teleprompterOverlayTransparency)
+        set(showElapsedTime, DefaultsKey.teleprompterShowElapsedTime)
+        set(hideFromScreenShare, DefaultsKey.teleprompterHideFromScreenShare)
+    }
+
+    private func loadPlacementProfile(for mode: TeleprompterOverlayMode) {
+        let defaults = UserDefaults.standard
+        let guidanceKey = placementProfileKey(DefaultsKey.teleprompterGuidanceMode, mode: mode)
+        guard defaults.object(forKey: guidanceKey) != nil else { return }
+        func string(_ key: String) -> String? {
+            defaults.string(forKey: placementProfileKey(key, mode: mode))
+        }
+        func number(_ key: String) -> Double? {
+            let storedKey = placementProfileKey(key, mode: mode)
+            return defaults.object(forKey: storedKey) == nil ? nil : defaults.double(forKey: storedKey)
+        }
+        func bool(_ key: String, fallback: Bool) -> Bool {
+            let storedKey = placementProfileKey(key, mode: mode)
+            return defaults.object(forKey: storedKey) == nil ? fallback : defaults.bool(forKey: storedKey)
+        }
+        if let raw = string(DefaultsKey.teleprompterFontFamily), let value = TeleprompterFontFamilyPreset(rawValue: raw) { fontFamily = value }
+        if let raw = string(DefaultsKey.teleprompterFontSize), let value = TeleprompterFontSizePreset(rawValue: raw) { fontSize = value }
+        if let raw = string(DefaultsKey.teleprompterHighlightColor), let value = TeleprompterHighlightColorPreset(rawValue: raw) { highlightColor = value }
+        if let raw = string(DefaultsKey.teleprompterCueColor), let value = TeleprompterCueColorPreset(rawValue: raw) { cueColor = value }
+        if let raw = string(DefaultsKey.teleprompterCueBrightness), let value = TeleprompterCueBrightness(rawValue: raw) { cueBrightness = value }
+        if let raw = string(DefaultsKey.teleprompterGuidanceMode), let value = GuidanceMode(rawValue: raw) { guidanceMode = value }
+        if let value = number(DefaultsKey.teleprompterScrollSpeed) { scrollSpeed = Self.clampedScrollSpeed(value) }
+        if let raw = string(DefaultsKey.teleprompterReadingPosition), let value = TeleprompterReadingPosition(rawValue: raw) { readingPosition = value }
+        showParagraphDividers = bool(DefaultsKey.teleprompterShowParagraphDividers, fallback: showParagraphDividers)
+        showLastSpokenWords = bool(DefaultsKey.teleprompterShowLastSpokenWords, fallback: showLastSpokenWords)
+        keepScreenAwake = bool(DefaultsKey.teleprompterKeepScreenAwake, fallback: keepScreenAwake)
+        autoNextPage = bool(DefaultsKey.teleprompterAutoNextPage, fallback: autoNextPage)
+        if let value = number(DefaultsKey.teleprompterWidth) { windowWidth = value }
+        if let value = number(DefaultsKey.teleprompterHeight) { windowHeight = value }
+        if let value = number(DefaultsKey.teleprompterOverlayTransparency) { overlayTransparency = value }
+        showElapsedTime = bool(DefaultsKey.teleprompterShowElapsedTime, fallback: showElapsedTime)
+        hideFromScreenShare = bool(DefaultsKey.teleprompterHideFromScreenShare, fallback: hideFromScreenShare)
     }
 
     /// Resets all teleprompter options to defaults, preserving user scripts and pages.
     func resetSettings() {
         guidanceMode = .wordTracking
         overlayMode = .notch
-        previewOverlayMode = .notch
         scrollSpeed = 2.5
         fontSize = .sm
         fontFamily = .sans
@@ -364,6 +422,7 @@ final class TeleprompterService: ObservableObject {
         remoteServerEnabled = false
         directorServerEnabled = false
         savePreferences()
+        savePlacementProfile(for: .floating)
     }
 
     private func setupObservers() {
@@ -491,6 +550,16 @@ final class TeleprompterService: ObservableObject {
         }
     }
 
+    /// Save the current surface's options, then restore the chosen surface's
+    /// own appearance, guidance, reading, and size settings.
+    func selectOverlayMode(_ mode: TeleprompterOverlayMode) {
+        guard overlayMode != mode else { return }
+        savePlacementProfile(for: overlayMode)
+        overlayMode = mode
+        loadPlacementProfile(for: mode)
+        savePreferences()
+    }
+
     /// Move an active session when the user changes its selected placement.
     func applyOverlayPlacement() {
         guard isRunning else { return }
@@ -525,16 +594,19 @@ final class TeleprompterService: ObservableObject {
             updateNotchSurfaceSize()
         } else {
             NotchService.shared.setTeleprompterSurfaceSize(
-                previewOverlayMode == .notch ? CGSize(width: windowWidth, height: windowHeight) : nil
+                overlayMode == .notch ? CGSize(width: windowWidth, height: windowHeight) : nil
             )
         }
         guard !isRunning else {
             if overlayMode == .floating { TeleprompterFloatingWindowController.shared.updateFrame() }
             return
         }
-        if previewOverlayMode == .floating {
+        if overlayMode == .floating {
             let isChangingSurface = !isPreviewingFloating
-            if isChangingSurface { previewWordProgress = 0 }
+            if isChangingSurface {
+                previewWordProgress = 0
+                previewPageIndex = 0
+            }
             isPreviewingInNotch = false
             isPreviewingFloating = true
             let shouldPresentWindow = isChangingSurface || !floatingWindowVisible
@@ -548,7 +620,10 @@ final class TeleprompterService: ObservableObject {
             startPreviewProgressTimerIfNeeded()
         } else {
             let isChangingSurface = !isPreviewingInNotch
-            if isChangingSurface { previewWordProgress = 0 }
+            if isChangingSurface {
+                previewWordProgress = 0
+                previewPageIndex = 0
+            }
             if isChangingSurface { restoreFloatingAfterNotchPreview = floatingWindowVisible }
             isPreviewingFloating = false
             isPreviewingInNotch = true
@@ -599,20 +674,30 @@ final class TeleprompterService: ObservableObject {
 
     private func startPreviewProgressTimerIfNeeded() {
         guard previewProgressTimer == nil else { return }
-        let wordCount = max(1, splitTextIntoWords(Self.previewScript).count)
         previewProgressTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.isPreviewingInNotch || self.isPreviewingFloating else { return }
+                let wordCount = max(1, splitTextIntoWords(self.previewCurrentScript).count)
                 let next = self.previewWordProgress + self.scrollSpeed * 0.05
                 self.previewWordProgress = next >= Double(wordCount) ? 0 : next
             }
         }
     }
 
+    func previousPreviewPage() {
+        guard previewPageIndex > 0 else { return }
+        previewPageIndex -= 1
+        previewWordProgress = 0
+    }
+
+    func nextPreviewPage() {
+        guard previewPageIndex < Self.previewPages.count - 1 else { return }
+        previewPageIndex += 1
+        previewWordProgress = 0
+    }
+
     private func updateNotchSurfaceSize() {
-        let isPreviewActive = isPreviewingInNotch || isPreviewingFloating
-        let activeMode = isRunning ? overlayMode : (isPreviewActive ? previewOverlayMode : overlayMode)
-        guard activeMode == .notch, isRunning || isPreviewingInNotch else {
+        guard overlayMode == .notch, isRunning || isPreviewingInNotch else {
             NotchService.shared.setTeleprompterSurfaceSize(nil)
             return
         }

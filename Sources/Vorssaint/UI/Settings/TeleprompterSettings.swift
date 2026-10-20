@@ -25,7 +25,7 @@ private struct TeleprompterPreviewSettingsSnapshot: Equatable {
             service.guidanceMode.rawValue, String(service.scrollSpeed),
             service.readingPosition.rawValue, String(service.showParagraphDividers),
             String(service.showLastSpokenWords), String(service.windowWidth), String(service.windowHeight),
-            service.overlayMode.rawValue, service.previewOverlayMode.rawValue, service.displayTargetMode.rawValue,
+            service.overlayMode.rawValue, service.displayTargetMode.rawValue,
             String(service.overlayTransparency), String(service.showElapsedTime),
             String(service.autoNextPage), service.externalDisplayMode.rawValue,
             service.externalMirrorAxis.rawValue
@@ -58,6 +58,75 @@ struct InfoTip: View {
                 .frame(width: 250)
                 .padding(12)
         }
+    }
+}
+
+private struct TeleprompterPlacementPreview: View {
+    let mode: TeleprompterOverlayMode
+    let highlightColor: Color
+    let autoNextPage: Bool
+    let elapsedTime: Bool
+    let width: Double
+    let height: Double
+
+    private var sampleWidth: CGFloat {
+        CGFloat(min(360, max(240, 240 + (width - 320) * 0.15)))
+    }
+
+    private var sampleHeight: CGFloat {
+        CGFloat(min(82, max(58, 58 + (height - 160) * 0.04)))
+    }
+
+    var body: some View {
+        HStack {
+            Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 7) {
+                    Image(systemName: mode.icon)
+                        .foregroundStyle(highlightColor)
+                    Text(mode.label)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                    Spacer(minLength: 4)
+                    if elapsedTime {
+                        Text("00:12")
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.55))
+                    }
+                    if autoNextPage {
+                        HStack(spacing: 5) {
+                            Image(systemName: "chevron.left")
+                            Image(systemName: "chevron.right")
+                        }
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.7))
+                    }
+                }
+                HStack(spacing: 4) {
+                    Text("A quick brown fox jumps over the quiet fence.")
+                        .foregroundStyle(highlightColor)
+                    Text("Then follows the winding path…")
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+                .font(.system(size: 10, weight: .medium))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 14)
+            .frame(width: sampleWidth, height: sampleHeight)
+            .background(.black.opacity(0.94), in: RoundedRectangle(
+                cornerRadius: mode == .notch ? 22 : 14, style: .continuous
+            ))
+            .overlay(
+                RoundedRectangle(cornerRadius: mode == .notch ? 22 : 14, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+            )
+            Spacer(minLength: 0)
+        }
+        .frame(height: sampleHeight + 16)
+        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Static \(mode.label) preview")
     }
 }
 
@@ -300,19 +369,6 @@ struct TeleprompterSettings: View {
                     }
                 }
 
-                Picker("Live Window Placement", selection: $service.overlayMode) {
-                    ForEach(TeleprompterOverlayMode.allCases) { mode in
-                        Label(mode.label, systemImage: mode.icon).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .help("Controls where an opened or running teleprompter appears. Preview placement is selected separately in Appearance.")
-                .onChange(of: service.overlayMode) { _, _ in
-                    triggerHaptic()
-                    service.savePreferences()
-                    service.applyOverlayPlacement()
-                }
-
                 HStack {
                     Text("Global Shortcut")
                     Spacer()
@@ -336,6 +392,33 @@ struct TeleprompterSettings: View {
                         }
                         .disabled(!teleprompterEnabled)
                 }
+
+                Picker("Window Placement", selection: Binding(
+                    get: { service.overlayMode },
+                    set: { service.selectOverlayMode($0) }
+                )) {
+                    ForEach(TeleprompterOverlayMode.allCases) { mode in
+                        Label(mode.label, systemImage: mode.icon).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .help("Choose where the preview and next teleprompter run appear.")
+                .disabled(!teleprompterEnabled)
+                .onChange(of: service.overlayMode) { _, _ in
+                    triggerHaptic()
+                    service.savePreferences()
+                    service.applyOverlayPlacement()
+                    if !service.isRunning { service.previewInNotch(autoCloseAfter: 4) }
+                }
+
+                TeleprompterPlacementPreview(
+                    mode: service.overlayMode,
+                    highlightColor: service.highlightColor.color,
+                    autoNextPage: service.autoNextPage,
+                    elapsedTime: service.showElapsedTime,
+                    width: service.windowWidth,
+                    height: service.windowHeight
+                )
             } header: {
                 Text(strings.title)
             }
@@ -442,27 +525,14 @@ struct TeleprompterSettings: View {
                     service.savePreferences()
                 }
 
-                Picker("Preview Surface", selection: $service.previewOverlayMode) {
-                    ForEach(TeleprompterOverlayMode.allCases) { mode in
-                        Label(mode.label, systemImage: mode.icon).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .help("Choose the surface used for settings previews. This does not change where a live teleprompter runs.")
-                .onChange(of: service.previewOverlayMode) { _, _ in
-                    triggerHaptic()
-                    service.savePreferences()
-                    if !service.isRunning { service.previewInNotch(autoCloseAfter: 4) }
-                }
-
                 HStack {
                     Spacer()
                     Button {
                         service.previewInNotch()
                         triggerHaptic()
                     } label: {
-                        Label(service.previewOverlayMode == .floating ? "Preview Floating Window" : "Preview in Notch",
-                              systemImage: service.previewOverlayMode == .floating
+                        Label(service.overlayMode == .floating ? "Preview Floating Window" : "Preview in Notch",
+                              systemImage: service.overlayMode == .floating
                                   ? "macwindow" : "rectangle.topthird.inset.filled")
                     }
                     .help("Show a live, animated sample on the selected teleprompter surface using the current settings. This does not start a reading session.")
@@ -568,26 +638,28 @@ struct TeleprompterSettings: View {
 
             // MARK: - 6. Teleprompter Window & Display Section
             Section {
-                HStack {
-                    HStack(spacing: 4) {
-                        Text("Display Target")
-                        InfoTip(text: "Follow Mouse displays the prompter on the monitor where your cursor is; Fixed Display keeps it locked to a single screen.")
-                    }
-                    Spacer()
-                    Picker("", selection: $service.displayTargetMode) {
-                        ForEach(TeleprompterDisplayTargetMode.allCases) { tm in
-                            Text(tm.label).tag(tm)
+                if service.overlayMode == .floating {
+                    HStack {
+                        HStack(spacing: 4) {
+                            Text("Display Target")
+                            InfoTip(text: "Follow Mouse displays the prompter on the monitor where your cursor is; Fixed Display keeps it locked to a single screen.")
                         }
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: service.displayTargetMode) { _, _ in
-                        triggerHaptic()
-                        service.savePreferences()
+                        Spacer()
+                        Picker("", selection: $service.displayTargetMode) {
+                            ForEach(TeleprompterDisplayTargetMode.allCases) { tm in
+                                Text(tm.label).tag(tm)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: service.displayTargetMode) { _, _ in
+                            triggerHaptic()
+                            service.savePreferences()
+                        }
                     }
                 }
 
                 HStack(spacing: 12) {
-                    Text("Window Width")
+                    Text(service.overlayMode == .floating ? "Window Width" : "Notch Width")
                         .frame(width: 110, alignment: .leading)
                     Slider(value: $service.windowWidth, in: TeleprompterService.windowWidthRange, step: 20)
                         .help("320–1000 points, limited by the selected display's available width.")
@@ -602,7 +674,7 @@ struct TeleprompterSettings: View {
                 }
 
                 HStack(spacing: 12) {
-                    Text("Window Height")
+                    Text(service.overlayMode == .floating ? "Window Height" : "Notch Height")
                         .frame(width: 110, alignment: .leading)
                     Slider(value: $service.windowHeight, in: TeleprompterService.windowHeightRange, step: 20)
                         .help("160–800 points, limited by the selected display's available height.")
@@ -633,13 +705,15 @@ struct TeleprompterSettings: View {
                 Toggle("Show elapsed time", isOn: $service.showElapsedTime)
                     .onChange(of: service.showElapsedTime) { _, _ in service.savePreferences() }
 
-                Toggle(isOn: $service.hideFromScreenShare) {
-                    HStack(spacing: 4) {
-                        Text("Hide from screen sharing")
-                        InfoTip(text: "Sets window sharing to none, ensuring your script remains completely invisible during Zoom, Teams, and Google Meet screen presentations.")
+                if service.overlayMode == .floating {
+                    Toggle(isOn: $service.hideFromScreenShare) {
+                        HStack(spacing: 4) {
+                            Text("Hide from screen sharing")
+                            InfoTip(text: "Sets window sharing to none, ensuring your script remains completely invisible during Zoom, Teams, and Google Meet screen presentations.")
+                        }
                     }
+                    .onChange(of: service.hideFromScreenShare) { _, _ in service.savePreferences() }
                 }
-                .onChange(of: service.hideFromScreenShare) { _, _ in service.savePreferences() }
             } header: {
                 Text("Teleprompter Window & Display")
             }

@@ -13,7 +13,7 @@ struct NotchTeleprompterView: View {
     @State private var showingPageCards: Bool = false
     @State private var dragStartHeight: Double = -1
 
-    private var previewScript: String { TeleprompterService.previewScript }
+    private var previewScript: String { service.previewCurrentScript }
 
     private var showsPrompterSurface: Bool { service.isRunning || service.isPreviewingInNotch }
     private var displayedWords: [String] {
@@ -289,25 +289,36 @@ struct NotchTeleprompterView: View {
                     liveWaveform
                 }
 
-                if (service.isRunning || service.isPreviewingInNotch)
-                    && service.autoNextPage && pagesList.count > 1 {
+                if service.autoNextPage
+                    && ((service.isRunning && pagesList.count > 1) || service.isPreviewingInNotch) {
                     Button {
-                        service.previousPage()
+                        if service.isPreviewingInNotch && !service.isRunning {
+                            service.previousPreviewPage()
+                        } else {
+                            service.previousPage()
+                        }
                     } label: {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 11, weight: .bold))
                     }
                     .buttonStyle(.plain)
-                    .disabled(service.currentPageIndex == 0)
+                    .disabled(service.isPreviewingInNotch && !service.isRunning
+                              ? service.previewPageIndex == 0 : service.currentPageIndex == 0)
 
                     Button {
-                        service.nextPage()
+                        if service.isPreviewingInNotch && !service.isRunning {
+                            service.nextPreviewPage()
+                        } else {
+                            service.nextPage()
+                        }
                     } label: {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 11, weight: .bold))
                     }
                     .buttonStyle(.plain)
-                    .disabled(service.currentPageIndex >= pagesList.count - 1)
+                    .disabled(service.isPreviewingInNotch && !service.isRunning
+                              ? service.previewPageIndex >= TeleprompterService.previewPages.count - 1
+                              : service.currentPageIndex >= pagesList.count - 1)
                 }
 
                 Spacer()

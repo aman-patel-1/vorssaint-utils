@@ -116,8 +116,8 @@ struct TeleprompterFloatingContentView: View {
     @ObservedObject private var recognizer = TeleprompterService.shared.speechRecognizer
 
     private var pageCount: Int { max(1, service.pages.count) }
-    private var previewWords: [String] { splitTextIntoWords(TeleprompterService.previewScript) }
-    private var activeScript: String { service.isPreviewingFloating ? TeleprompterService.previewScript : service.currentScript }
+    private var previewWords: [String] { splitTextIntoWords(service.previewCurrentScript) }
+    private var activeScript: String { service.isPreviewingFloating ? service.previewCurrentScript : service.currentScript }
     private var activeWords: [String] { service.isPreviewingFloating ? previewWords : service.currentWords }
     private var previewCharCount: Int {
         activeWords.prefix(min(activeWords.count, max(0, Int(service.previewWordProgress))))
@@ -241,9 +241,14 @@ struct TeleprompterFloatingContentView: View {
 
             Spacer(minLength: 4)
 
-            if service.isRunning && service.autoNextPage && pageCount > 1 {
+            if service.autoNextPage
+                && ((service.isRunning && pageCount > 1) || service.isPreviewingFloating) {
                 Button {
-                    service.previousPage()
+                    if service.isPreviewingFloating && !service.isRunning {
+                        service.previousPreviewPage()
+                    } else {
+                        service.previousPage()
+                    }
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 10, weight: .bold))
@@ -251,12 +256,17 @@ struct TeleprompterFloatingContentView: View {
                         .background(Color.white.opacity(0.1), in: Circle())
                 }
                 .buttonStyle(.plain)
-                .disabled(service.currentPageIndex == 0)
+                .disabled(service.isPreviewingFloating && !service.isRunning
+                          ? service.previewPageIndex == 0 : service.currentPageIndex == 0)
                 .help("Previous page")
                 .accessibilityLabel("Previous page")
 
                 Button {
-                    service.nextPage()
+                    if service.isPreviewingFloating && !service.isRunning {
+                        service.nextPreviewPage()
+                    } else {
+                        service.nextPage()
+                    }
                 } label: {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .bold))
@@ -264,7 +274,9 @@ struct TeleprompterFloatingContentView: View {
                         .background(Color.white.opacity(0.1), in: Circle())
                 }
                 .buttonStyle(.plain)
-                .disabled(service.currentPageIndex >= pageCount - 1)
+                .disabled(service.isPreviewingFloating && !service.isRunning
+                          ? service.previewPageIndex >= TeleprompterService.previewPages.count - 1
+                          : service.currentPageIndex >= pageCount - 1)
                 .help("Next page")
                 .accessibilityLabel("Next page")
             }
