@@ -17,12 +17,25 @@ private func triggerHaptic() {
 
 struct InfoTip: View {
     let text: String
+    @State private var isShowing = false
 
     var body: some View {
-        Image(systemName: "questionmark.circle")
-            .font(.system(size: 11))
-            .foregroundStyle(.secondary)
-            .help(text)
+        Button {
+            isShowing.toggle()
+        } label: {
+            Image(systemName: "questionmark.circle")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(text)
+        .popover(isPresented: $isShowing, arrowEdge: .trailing) {
+            Text(text)
+                .font(.system(size: 12))
+                .padding(10)
+                .frame(maxWidth: 240)
+        }
     }
 }
 
@@ -130,8 +143,6 @@ struct TeleprompterSettings: View {
 
     @State private var inputDevices: [AudioInputDevice] = AudioInputDevice.allInputDevices()
     @State private var editingPageIndex: Int? = nil
-    @State private var editingPageText: String = ""
-    @State private var originalPageText: String = ""
     @State private var pageToDelete: Int? = nil
     @State private var confirmingReset = false
     @State private var showingImportError = false
@@ -152,10 +163,12 @@ struct TeleprompterSettings: View {
         Form {
             // MARK: - 1. Master Section
             Section {
-                Toggle(strings.title, isOn: $teleprompterEnabled)
-                Text(strings.hubDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Toggle(isOn: $teleprompterEnabled) {
+                    HStack(spacing: 4) {
+                        Text("Enable the Teleprompter")
+                        InfoTip(text: strings.hubDescription)
+                    }
+                }
 
                 HStack {
                     Text("Global Shortcut")
@@ -230,7 +243,16 @@ struct TeleprompterSettings: View {
                 }
                 .padding(.top, 4)
             } header: {
-                Text("Script Studio & Notes")
+                HStack {
+                    Text("Script Studio & Notes")
+                    Spacer()
+                    if service.pages.count >= 2 {
+                        Toggle("Auto Next Page", isOn: $service.autoNextPage)
+                            .toggleStyle(.checkbox)
+                            .font(.caption)
+                            .onChange(of: service.autoNextPage) { _, _ in service.savePreferences() }
+                    }
+                }
             }
             .disabled(!teleprompterEnabled)
 
@@ -300,18 +322,24 @@ struct TeleprompterSettings: View {
                 }
 
                 if service.guidanceMode != .wordTracking {
-                    HStack(spacing: 12) {
+                    HStack(spacing: 8) {
                         Text("Scroll Speed")
                             .frame(width: 110, alignment: .leading)
+                        Text("Slower")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
                         Slider(value: $service.scrollSpeed, in: 1.0...6.0, step: 0.1)
                             .onChange(of: service.scrollSpeed) { _, _ in
                                 triggerHaptic()
                                 service.savePreferences()
                             }
+                        Text("Faster")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
                         Text(String(format: "%.1fx", service.scrollSpeed))
-                            .monospacedDigit()
+                            .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(.secondary)
-                            .frame(width: 60, alignment: .trailing)
+                            .frame(width: 44, alignment: .trailing)
                     }
                 }
 
@@ -361,12 +389,13 @@ struct TeleprompterSettings: View {
                 Toggle("Show last spoken word", isOn: $service.showLastSpokenWords)
                     .onChange(of: service.showLastSpokenWords) { _, _ in service.savePreferences() }
 
-                HStack {
-                    Toggle("Keep screen awake while teleprompter is active", isOn: $service.keepScreenAwake)
-                        .onChange(of: service.keepScreenAwake) { _, _ in service.savePreferences() }
-                    Spacer()
-                    InfoTip(text: "Prevents the display from sleeping during an active teleprompter session using an IOKit power assertion.")
+                Toggle(isOn: $service.keepScreenAwake) {
+                    HStack(spacing: 4) {
+                        Text("Keep screen awake while teleprompter is active")
+                        InfoTip(text: "Prevents the display from sleeping during an active teleprompter session using an IOKit power assertion.")
+                    }
                 }
+                .onChange(of: service.keepScreenAwake) { _, _ in service.savePreferences() }
             } header: {
                 Text("Reading")
             }
@@ -406,29 +435,29 @@ struct TeleprompterSettings: View {
                 HStack(spacing: 12) {
                     Text("Window Width")
                         .frame(width: 110, alignment: .leading)
-                    Slider(value: $service.windowWidth, in: 300...900, step: 10)
+                    Slider(value: $service.windowWidth, in: 310...500, step: 10)
                         .onChange(of: service.windowWidth) { _, _ in
                             triggerHaptic()
                             service.savePreferences()
                         }
                     Text("\(Int(service.windowWidth)) px")
-                        .monospacedDigit()
+                        .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(.secondary)
-                        .frame(width: 60, alignment: .trailing)
+                        .frame(width: 50, alignment: .trailing)
                 }
 
                 HStack(spacing: 12) {
                     Text("Window Height")
                         .frame(width: 110, alignment: .leading)
-                    Slider(value: $service.windowHeight, in: 120...600, step: 10)
+                    Slider(value: $service.windowHeight, in: 100...400, step: 10)
                         .onChange(of: service.windowHeight) { _, _ in
                             triggerHaptic()
                             service.savePreferences()
                         }
                     Text("\(Int(service.windowHeight)) px")
-                        .monospacedDigit()
+                        .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(.secondary)
-                        .frame(width: 60, alignment: .trailing)
+                        .frame(width: 50, alignment: .trailing)
                 }
 
                 HStack(spacing: 12) {
@@ -440,23 +469,21 @@ struct TeleprompterSettings: View {
                             service.savePreferences()
                         }
                     Text("\(Int(service.overlayTransparency * 100))%")
-                        .monospacedDigit()
+                        .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(.secondary)
-                        .frame(width: 60, alignment: .trailing)
+                        .frame(width: 50, alignment: .trailing)
                 }
 
                 Toggle("Show elapsed time", isOn: $service.showElapsedTime)
                     .onChange(of: service.showElapsedTime) { _, _ in service.savePreferences() }
 
-                HStack {
-                    Toggle("Hide from screen sharing", isOn: $service.hideFromScreenShare)
-                        .onChange(of: service.hideFromScreenShare) { _, _ in service.savePreferences() }
-                    Spacer()
-                    InfoTip(text: "Sets window sharing to none, ensuring your script remains completely invisible during Zoom, Teams, and Google Meet screen presentations.")
+                Toggle(isOn: $service.hideFromScreenShare) {
+                    HStack(spacing: 4) {
+                        Text("Hide from screen sharing")
+                        InfoTip(text: "Sets window sharing to none, ensuring your script remains completely invisible during Zoom, Teams, and Google Meet screen presentations.")
+                    }
                 }
-
-                Toggle("Auto next page", isOn: $service.autoNextPage)
-                    .onChange(of: service.autoNextPage) { _, _ in service.savePreferences() }
+                .onChange(of: service.hideFromScreenShare) { _, _ in service.savePreferences() }
             } header: {
                 Text("Teleprompter Window & Display")
             }
@@ -518,18 +545,19 @@ struct TeleprompterSettings: View {
 
             // MARK: - 8. Remote Control Section
             Section {
-                HStack {
-                    Toggle("Enable Browser Remote", isOn: $service.remoteServerEnabled)
-                        .onChange(of: service.remoteServerEnabled) { _, on in
-                            service.savePreferences()
-                            if on {
-                                service.remoteServer.start()
-                            } else {
-                                service.remoteServer.stop()
-                            }
-                        }
-                    Spacer()
-                    InfoTip(text: "Control scroll speed, play/pause, and pagination wirelessly from any mobile or desktop browser on your local network.")
+                Toggle(isOn: $service.remoteServerEnabled) {
+                    HStack(spacing: 4) {
+                        Text("Enable Browser Remote")
+                        InfoTip(text: "Control scroll speed, play/pause, and pagination wirelessly from any mobile or desktop browser on your local network.")
+                    }
+                }
+                .onChange(of: service.remoteServerEnabled) { _, on in
+                    service.savePreferences()
+                    if on {
+                        service.remoteServer.start()
+                    } else {
+                        service.remoteServer.stop()
+                    }
                 }
 
                 if service.remoteServerEnabled {
@@ -542,18 +570,19 @@ struct TeleprompterSettings: View {
 
             // MARK: - 9. Director Studio Section
             Section {
-                HStack {
-                    Toggle("Enable Director Server", isOn: $service.directorServerEnabled)
-                        .onChange(of: service.directorServerEnabled) { _, on in
-                            service.savePreferences()
-                            if on {
-                                service.directorServer.start()
-                            } else {
-                                service.directorServer.stop()
-                            }
-                        }
-                    Spacer()
-                    InfoTip(text: "Live studio production server for live multi-client script editing and prompting.")
+                Toggle(isOn: $service.directorServerEnabled) {
+                    HStack(spacing: 4) {
+                        Text("Enable Director Server")
+                        InfoTip(text: "Live studio production server for live multi-client script editing and prompting.")
+                    }
+                }
+                .onChange(of: service.directorServerEnabled) { _, on in
+                    service.savePreferences()
+                    if on {
+                        service.directorServer.start()
+                    } else {
+                        service.directorServer.stop()
+                    }
                 }
 
                 if service.directorServerEnabled {
@@ -692,12 +721,6 @@ struct TeleprompterSettings: View {
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-
-            Button("Edit") {
-                openPageEditor(index: index)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
@@ -724,37 +747,28 @@ struct TeleprompterSettings: View {
         if service.pages.isEmpty {
             service.pages = [service.text]
         }
-        if index < service.pages.count {
-            editingPageIndex = index
-            editingPageText = service.pages[index]
-            originalPageText = service.pages[index]
+        guard index < service.pages.count else { return }
+        editingPageIndex = index
+        let pageText = service.pages[index]
 
-            PageEditorWindowController.shared.show(
-                pageIndex: index,
-                text: Binding(
-                    get: { editingPageText },
-                    set: { editingPageText = $0 }
-                ),
-                service: service,
-                dictation: dictation,
-                onCancel: {
-                    closePageEditor(save: false)
-                },
-                onDone: {
-                    closePageEditor(save: true)
-                }
-            )
-        }
+        PageEditorWindowController.shared.show(
+            pageIndex: index,
+            initialText: pageText,
+            service: service,
+            dictation: dictation,
+            onCancel: {
+                closePageEditor(save: false)
+            },
+            onDone: { newText in
+                closePageEditor(save: true, newText: newText)
+            }
+        )
     }
 
-    private func closePageEditor(save: Bool) {
-        if save, let idx = editingPageIndex, idx < service.pages.count {
-            service.pages[idx] = editingPageText
+    private func closePageEditor(save: Bool, newText: String? = nil) {
+        if save, let idx = editingPageIndex, let newText = newText, idx < service.pages.count {
+            service.pages[idx] = newText
             service.savePreferences()
-        } else if !save, let idx = editingPageIndex, idx < service.pages.count {
-            if originalPageText.isEmpty && editingPageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && service.pages.count > 1 {
-                service.removePage(at: idx)
-            }
         }
         editingPageIndex = nil
     }
@@ -763,23 +777,22 @@ struct TeleprompterSettings: View {
         service.addPage()
         let newIdx = max(0, service.pages.count - 1)
         editingPageIndex = newIdx
-        editingPageText = service.pages[newIdx]
-        originalPageText = ""
+        let pageText = service.pages[newIdx]
         triggerHaptic()
 
         PageEditorWindowController.shared.show(
             pageIndex: newIdx,
-            text: Binding(
-                get: { editingPageText },
-                set: { editingPageText = $0 }
-            ),
+            initialText: pageText,
             service: service,
             dictation: dictation,
             onCancel: {
+                if newIdx < service.pages.count && service.pages[newIdx].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && service.pages.count > 1 {
+                    service.removePage(at: newIdx)
+                }
                 closePageEditor(save: false)
             },
-            onDone: {
-                closePageEditor(save: true)
+            onDone: { newText in
+                closePageEditor(save: true, newText: newText)
             }
         )
     }
@@ -923,78 +936,81 @@ struct TeleprompterSettings: View {
     }
 }
 
-// MARK: - Dedicated Page Editor Window Controller (Movable & Resizable)
+// MARK: - Dedicated Page Editor Window Controller (Modal Sheet)
 
-final class PageEditorWindowController: NSWindowController, NSWindowDelegate {
+final class PageEditorWindowController: NSObject {
     static let shared = PageEditorWindowController()
 
-    private var onDoneCallback: (() -> Void)?
-    private var onCancelCallback: (() -> Void)?
+    private var currentSheet: NSWindow?
     private var isDismissing: Bool = false
 
-    convenience init() {
+    func show(
+        pageIndex: Int,
+        initialText: String,
+        service: TeleprompterService,
+        dictation: DictationManager,
+        onCancel: @escaping () -> Void,
+        onDone: @escaping (String) -> Void
+    ) {
+        guard !isDismissing else { return }
+
+        let parentWindow = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: { $0.isVisible && !$0.isMiniaturized })
+
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 660, height: 520),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            styleMask: [.titled, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden
-        panel.isMovableByWindowBackground = true
         panel.minSize = NSSize(width: 540, height: 400)
         panel.maxSize = NSSize(width: 920, height: 820)
-        panel.isReleasedWhenClosed = false
-        panel.level = .floating
         panel.standardWindowButton(.closeButton)?.isHidden = true
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
 
-        self.init(window: panel)
-        panel.delegate = self
-    }
-
-    func show(
-        pageIndex: Int,
-        text: Binding<String>,
-        service: TeleprompterService,
-        dictation: DictationManager,
-        onCancel: @escaping () -> Void,
-        onDone: @escaping () -> Void
-    ) {
-        self.isDismissing = false
-        self.onCancelCallback = onCancel
-        self.onDoneCallback = onDone
-
         let contentView = PageEditorDialog(
             pageIndex: pageIndex,
-            text: text,
+            initialText: initialText,
             service: service,
             dictation: dictation,
-            onCancel: { [weak self] in
+            onCancel: { [weak self, weak parentWindow, weak panel] in
                 guard let self = self, !self.isDismissing else { return }
                 self.isDismissing = true
-                self.window?.orderOut(nil)
+                if let panel = panel, let parentWindow = parentWindow, parentWindow.sheets.contains(panel) {
+                    parentWindow.endSheet(panel)
+                } else {
+                    panel?.orderOut(nil)
+                }
+                self.currentSheet = nil
+                self.isDismissing = false
                 onCancel()
             },
-            onDone: { [weak self] in
+            onDone: { [weak self, weak parentWindow, weak panel] newText in
                 guard let self = self, !self.isDismissing else { return }
                 self.isDismissing = true
-                self.window?.orderOut(nil)
-                onDone()
+                if let panel = panel, let parentWindow = parentWindow, parentWindow.sheets.contains(panel) {
+                    parentWindow.endSheet(panel)
+                } else {
+                    panel?.orderOut(nil)
+                }
+                self.currentSheet = nil
+                self.isDismissing = false
+                onDone(newText)
             }
         )
+        .ignoresSafeArea()
 
-        window?.contentView = NSHostingView(rootView: contentView)
-        window?.center()
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
+        panel.contentView = NSHostingView(rootView: contentView)
+        self.currentSheet = panel
 
-    func windowWillClose(_ notification: Notification) {
-        if !isDismissing {
-            isDismissing = true
-            onCancelCallback?()
+        if let parent = parentWindow {
+            parent.beginSheet(panel)
+        } else {
+            panel.center()
+            panel.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 }
@@ -1003,14 +1019,15 @@ final class PageEditorWindowController: NSWindowController, NSWindowDelegate {
 
 struct PageEditorDialog: View {
     let pageIndex: Int
-    @Binding var text: String
+    @State private var text: String
     @ObservedObject var service: TeleprompterService
     @ObservedObject var dictation: DictationManager
     var onCancel: () -> Void
-    var onDone: () -> Void
+    var onDone: (String) -> Void
 
     @State private var caretPosition: Int? = nil
     @State private var editorCaretPosition: Int = 0
+    @State private var cueToInsert: String? = nil
     @State private var dictationHighlightRange: NSRange? = nil
     @State private var highlightClearTimer: Timer?
     @State private var isHoveringControls: Bool = false
@@ -1020,6 +1037,22 @@ struct PageEditorDialog: View {
     @State private var segmentNeedsSeparator: Bool = false
     @State private var spokenSkipOffset: Int = 0
     @State private var lastRawSpokenLength: Int = 0
+
+    init(
+        pageIndex: Int,
+        initialText: String,
+        service: TeleprompterService,
+        dictation: DictationManager,
+        onCancel: @escaping () -> Void,
+        onDone: @escaping (String) -> Void
+    ) {
+        self.pageIndex = pageIndex
+        self._text = State(initialValue: initialText)
+        self.service = service
+        self.dictation = dictation
+        self.onCancel = onCancel
+        self.onDone = onDone
+    }
 
     private var wordsCount: Int {
         splitTextIntoWords(text).count
@@ -1038,8 +1071,8 @@ struct PageEditorDialog: View {
         VStack(spacing: 0) {
             // MARK: - Top Header Row: Window Buttons, Centered Title, Cue & Dictate on Right
             ZStack {
-                // Centered Page Title
-                Text("Page \(pageIndex + 1) Script & Notes")
+                // Centered Page Title (page number only)
+                Text("Page \(pageIndex + 1)")
                     .font(.system(size: 13, weight: .semibold))
 
                 HStack(spacing: 12) {
@@ -1059,19 +1092,17 @@ struct PageEditorDialog: View {
                             }
                             .help("Close & Discard")
 
+                        // Yellow minimize button is disabled for modal dialogs
                         Circle()
-                            .fill(Color(red: 1.0, green: 0.76, blue: 0.2))
+                            .fill(Color(red: 1.0, green: 0.76, blue: 0.2).opacity(0.35))
                             .frame(width: 12, height: 12)
                             .overlay(
                                 Image(systemName: "minus")
                                     .font(.system(size: 7, weight: .bold))
-                                    .foregroundStyle(Color.black.opacity(0.55))
+                                    .foregroundStyle(Color.black.opacity(0.25))
                                     .opacity(isHoveringControls ? 1 : 0)
                             )
-                            .onTapGesture {
-                                PageEditorWindowController.shared.window?.miniaturize(nil)
-                            }
-                            .help("Minimize")
+                            .help("Disabled")
 
                         Circle()
                             .fill(Color(red: 0.2, green: 0.8, blue: 0.35))
@@ -1083,7 +1114,7 @@ struct PageEditorDialog: View {
                                     .opacity(isHoveringControls ? 1 : 0)
                             )
                             .onTapGesture {
-                                PageEditorWindowController.shared.window?.zoom(nil)
+                                NSApp.keyWindow?.zoom(nil)
                             }
                             .help("Zoom")
                     }
@@ -1137,7 +1168,8 @@ struct PageEditorDialog: View {
                 cueColor: service.cueColor.nsColor,
                 cueAlpha: service.cueBrightness.alpha,
                 caretPosition: $caretPosition,
-                editorCaretPosition: $editorCaretPosition
+                editorCaretPosition: $editorCaretPosition,
+                cueToInsert: $cueToInsert
             )
             .padding(12)
             .background(Color(NSColor.textBackgroundColor))
@@ -1192,7 +1224,7 @@ struct PageEditorDialog: View {
                         if dictation.isRecording {
                             stopDictation()
                         }
-                        onDone()
+                        onDone(text)
                     }
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
@@ -1207,10 +1239,7 @@ struct PageEditorDialog: View {
     }
 
     private func insertCue(_ cue: String) {
-        let caret = min(editorCaretPosition, text.count)
-        let insertion = " [\(cue)] "
-        text.insert(contentsOf: insertion, at: text.index(text.startIndex, offsetBy: caret))
-        caretPosition = caret + insertion.count
+        cueToInsert = cue
         triggerHaptic()
     }
 

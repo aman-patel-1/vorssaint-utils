@@ -27,8 +27,8 @@ final class TeleprompterService: ObservableObject {
     @Published var highlightColor: TeleprompterHighlightColorPreset = .yellow
     @Published var cueColor: TeleprompterCueColorPreset = .yellow
     @Published var cueBrightness: TeleprompterCueBrightness = .medium
-    @Published var windowWidth: Double = 560.0
-    @Published var windowHeight: Double = 280.0
+    @Published var windowWidth: Double = 340.0
+    @Published var windowHeight: Double = 150.0
     @Published var readingPosition: TeleprompterReadingPosition = .centered
     @Published var displayTargetMode: TeleprompterDisplayTargetMode = .followMouse
     @Published var showParagraphDividers: Bool = false
@@ -182,9 +182,9 @@ final class TeleprompterService: ObservableObject {
             cueBrightness = cb
         }
         let w = defaults.double(forKey: DefaultsKey.teleprompterWidth)
-        if w >= 300 { windowWidth = w }
+        if w >= 310 && w <= 500 { windowWidth = w } else if w > 500 { windowWidth = 500 } else if w > 0 { windowWidth = 310 }
         let h = defaults.double(forKey: DefaultsKey.teleprompterHeight)
-        if h >= 120 { windowHeight = h }
+        if h >= 100 && h <= 400 { windowHeight = h } else if h > 400 { windowHeight = 400 } else if h > 0 { windowHeight = 100 }
         if let posStr = defaults.string(forKey: DefaultsKey.teleprompterReadingPosition),
            let rp = TeleprompterReadingPosition(rawValue: posStr) {
             readingPosition = rp
@@ -277,8 +277,8 @@ final class TeleprompterService: ObservableObject {
         highlightColor = .yellow
         cueColor = .yellow
         cueBrightness = .medium
-        windowWidth = 560.0
-        windowHeight = 280.0
+        windowWidth = 340.0
+        windowHeight = 150.0
         readingPosition = .centered
         displayTargetMode = .followMouse
         showParagraphDividers = false
