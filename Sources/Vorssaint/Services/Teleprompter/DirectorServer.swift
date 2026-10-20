@@ -29,6 +29,7 @@ struct DirectorCommand: Codable {
 
 // MARK: - Director Server
 
+@MainActor
 final class DirectorServer {
     private var httpListener: NWListener?
     private var wsListener: NWListener?
@@ -42,11 +43,11 @@ final class DirectorServer {
     private var contentActive: Bool = false
 
     // Callbacks
-    var onSetText: ((String) -> Void)?
-    var onUpdateText: ((String, Int) -> Void)?
-    var onStop: (() -> Void)?
-    var onNextPage: (() -> Void)?
-    var onPrevPage: (() -> Void)?
+    var onSetText: (@MainActor (String) -> Void)?
+    var onUpdateText: (@MainActor (String, Int) -> Void)?
+    var onStop: (@MainActor () -> Void)?
+    var onNextPage: (@MainActor () -> Void)?
+    var onPrevPage: (@MainActor () -> Void)?
 
     var httpPort: UInt16 {
         let saved = UserDefaults.standard.integer(forKey: DefaultsKey.teleprompterDirectorServerPort)
@@ -210,7 +211,9 @@ final class DirectorServer {
     private func startBroadcasting() {
         broadcastTimer?.invalidate()
         broadcastTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            self?.broadcastState()
+            MainActor.assumeIsolated {
+                self?.broadcastState()
+            }
         }
     }
 
@@ -262,7 +265,7 @@ final class DirectorServer {
 
     // MARK: - HTML Page Generation
 
-    static func generateHTML(wsPort: UInt16) -> String {
+    nonisolated static func generateHTML(wsPort: UInt16) -> String {
         """
         <!DOCTYPE html>
         <html lang="en">

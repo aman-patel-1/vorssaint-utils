@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Vorssaint
 // Based on Textream by Fatih Kadir Akın (MIT License)
 
-import Accelerate
 import AppKit
 import AVFoundation
 import Combine
@@ -11,15 +10,16 @@ import Speech
 
 // MARK: - Dictation Manager
 
+@MainActor
 final class DictationManager: ObservableObject {
     @Published var isRecording: Bool = false
     @Published var audioLevels: [CGFloat] = Array(repeating: 0, count: 30)
     @Published var error: String?
 
     /// Called on main thread with the latest recognized text for the current segment
-    var onTextUpdate: ((String) -> Void)?
+    var onTextUpdate: (@MainActor (String) -> Void)?
     /// Called on main thread when a new recognition segment begins (after silence or restart)
-    var onNewSegment: (() -> Void)?
+    var onNewSegment: (@MainActor () -> Void)?
 
     private var speechRecognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
@@ -27,7 +27,7 @@ final class DictationManager: ObservableObject {
     private var audioEngine = AVAudioEngine()
     private var configurationChangeObserver: Any?
     private var suppressConfigChange: Bool = false
-    private var requestLock = NSLock()
+    private let requestLock = NSLock()
 
     private var sessionGeneration: Int = 0
 
@@ -47,10 +47,12 @@ final class DictationManager: ObservableObject {
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
                 DispatchQueue.main.async {
-                    if granted {
-                        self?.requestSpeechAuthAndBegin()
-                    } else {
-                        self?.error = "Microphone access denied."
+                    MainActor.assumeIsolated {
+                        if granted {
+                            self?.requestSpeechAuthAndBegin()
+                        } else {
+                            self?.error = "Microphone access denied."
+                        }
                     }
                 }
             }
@@ -71,7 +73,11 @@ final class DictationManager: ObservableObject {
 
     private func cleanup() {
         requestLock.lock()
-        defer { requestLock.unlock() }
+        let req = recognitionRequest
+        recognitionRequest = nil
+        requestLock.unlock()
+
+        req?.endAudio()
 
         if let observer = configurationChangeObserver {
             NotificationCenter.default.removeObserver(observer)
@@ -83,16 +89,10 @@ final class DictationManager: ObservableObject {
             audioEngine.inputNode.removeTap(onBus: 0)
         }
 
-        recognitionRequest?.endAudio()
-        recognitionRequest = nil
-
         recognitionTask?.cancel()
         recognitionTask = nil
 
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.audioLevels = Array(repeating: 0, count: self.audioLevels.count)
-        }
+        audioLevels = Array(repeating: 0, count: 30)
     }
 
     // MARK: - Speech Authorization & Setup
@@ -100,17 +100,19 @@ final class DictationManager: ObservableObject {
     private func requestSpeechAuthAndBegin() {
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
             DispatchQueue.main.async {
-                guard let self else { return }
-                switch status {
-                case .authorized:
-                    self.beginSession()
-                case .denied, .restricted:
-                    self.error = "Speech recognition access denied. Enable Speech Recognition in System Settings."
-                    self.isRecording = false
-                case .notDetermined:
-                    self.isRecording = false
-                @unknown default:
-                    self.isRecording = false
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    switch status {
+                    case .authorized:
+                        self.beginSession()
+                    case .denied, .restricted:
+                        self.error = "Speech recognition access denied. Enable Speech Recognition in System Settings."
+                        self.isRecording = false
+                    case .notDetermined:
+                        self.isRecording = false
+                    @unknown default:
+                        self.isRecording = false
+                    }
                 }
             }
         }
@@ -154,13 +156,28 @@ final class DictationManager: ObservableObject {
         requestLock.unlock()
 
         inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: captureFormat) { [weak self] buffer, _ in
+        inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: captureFormat) { [weak self, requestLock] buffer, _ in
             guard let self else { return }
-            self.requestLock.lock()
-            self.recognitionRequest?.append(buffer)
-            self.requestLock.unlock()
+            requestLock.lock()
+            let req = self.recognitionRequest
+            requestLock.unlock()
+            req?.append(buffer)
 
-            self.updateAudioLevels(from: buffer)
+            guard let channelData = buffer.floatChannelData?[0] else { return }
+            let frameLength = Int(buffer.frameLength)
+            var sum: Float = 0
+            for i in 0..<frameLength {
+                sum += channelData[i] * channelData[i]
+            }
+            let rms = sqrt(sum / Float(max(frameLength, 1)))
+            let level = CGFloat(min(rms * 5.0, 1.0))
+
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard self.isRecording, self.sessionGeneration == currentGen else { return }
+                    self.recordAudioLevel(level)
+                }
+            }
         }
 
         audioEngine.prepare()
@@ -174,21 +191,20 @@ final class DictationManager: ObservableObject {
 
         recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, taskError in
             guard let self else { return }
-            guard self.sessionGeneration == currentGen else { return }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard self.sessionGeneration == currentGen else { return }
 
-            if let result {
-                let spoken = result.bestTranscription.formattedString
-                DispatchQueue.main.async {
-                    self.onTextUpdate?(spoken)
-                }
-            }
+                    if let result {
+                        let spoken = result.bestTranscription.formattedString
+                        self.onTextUpdate?(spoken)
+                    }
 
-            if taskError != nil || result?.isFinal == true {
-                // Segment completed or ended, restart if still recording
-                DispatchQueue.main.async {
-                    guard self.isRecording, self.sessionGeneration == currentGen else { return }
-                    self.onNewSegment?()
-                    self.restartRecognitionTask()
+                    if taskError != nil || result?.isFinal == true {
+                        guard self.isRecording else { return }
+                        self.onNewSegment?()
+                        self.restartRecognitionTask()
+                    }
                 }
             }
         }
@@ -216,39 +232,29 @@ final class DictationManager: ObservableObject {
         let currentGen = sessionGeneration
         recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, taskError in
             guard let self else { return }
-            guard self.sessionGeneration == currentGen else { return }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard self.sessionGeneration == currentGen else { return }
 
-            if let result {
-                let spoken = result.bestTranscription.formattedString
-                DispatchQueue.main.async {
-                    self.onTextUpdate?(spoken)
-                }
-            }
+                    if let result {
+                        let spoken = result.bestTranscription.formattedString
+                        self.onTextUpdate?(spoken)
+                    }
 
-            if taskError != nil || result?.isFinal == true {
-                DispatchQueue.main.async {
-                    guard self.isRecording, self.sessionGeneration == currentGen else { return }
-                    self.onNewSegment?()
-                    self.restartRecognitionTask()
+                    if taskError != nil || result?.isFinal == true {
+                        guard self.isRecording else { return }
+                        self.onNewSegment?()
+                        self.restartRecognitionTask()
+                    }
                 }
             }
         }
     }
 
-    private func updateAudioLevels(from buffer: AVAudioPCMBuffer) {
-        guard let channelData = buffer.floatChannelData?[0] else { return }
-        let channelDataValue = Array(UnsafeBufferPointer(start: channelData, count: Int(buffer.frameLength)))
-
-        var rms: Float = 0
-        vDSP_rmsqv(channelDataValue, 1, &rms, vDSP_Length(buffer.frameLength))
-        let level = CGFloat(min(1.0, max(0.0, Double(rms) * 5.0)))
-
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            var levels = self.audioLevels
-            levels.removeFirst()
-            levels.append(level)
-            self.audioLevels = levels
+    private func recordAudioLevel(_ level: CGFloat) {
+        audioLevels.append(level)
+        if audioLevels.count > 30 {
+            audioLevels.removeFirst()
         }
     }
 
@@ -259,13 +265,18 @@ final class DictationManager: ObservableObject {
             object: audioEngine,
             queue: .main
         ) { [weak self] _ in
-            guard let self, self.isRecording, !self.suppressConfigChange else { return }
-            self.suppressConfigChange = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.suppressConfigChange = false
-                if self.isRecording {
-                    self.cleanup()
-                    self.start()
+            guard let self else { return }
+            MainActor.assumeIsolated {
+                guard self.isRecording, !self.suppressConfigChange else { return }
+                self.suppressConfigChange = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    MainActor.assumeIsolated {
+                        self.suppressConfigChange = false
+                        if self.isRecording {
+                            self.cleanup()
+                            self.start()
+                        }
+                    }
                 }
             }
         }

@@ -615,13 +615,13 @@ struct TeleprompterSettings: View {
         spokenSkipOffset = 0
         beginNewSegment()
 
-        dictation.onNewSegment = { [self] in
+        dictation.onNewSegment = {
             lastRawSpokenLength = 0
             spokenSkipOffset = 0
             beginNewSegment()
         }
 
-        dictation.onTextUpdate = { [self] spokenText in
+        dictation.onTextUpdate = { spokenText in
             lastRawSpokenLength = spokenText.count
 
             let effectiveText: String
@@ -657,7 +657,7 @@ struct TeleprompterSettings: View {
 
             highlightClearTimer?.invalidate()
             highlightClearTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { _ in
-                DispatchQueue.main.async {
+                MainActor.assumeIsolated {
                     dictationHighlightRange = nil
                 }
             }

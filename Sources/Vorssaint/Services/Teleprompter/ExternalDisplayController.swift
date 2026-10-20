@@ -43,6 +43,7 @@ struct ExternalDisplayView: View {
 
 // MARK: - External Display Controller
 
+@MainActor
 final class ExternalDisplayController {
     private var panel: NSPanel?
     private var cancellables = Set<AnyCancellable>()

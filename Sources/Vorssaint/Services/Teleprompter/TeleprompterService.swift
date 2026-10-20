@@ -197,33 +197,23 @@ final class TeleprompterService: ObservableObject {
 
         // Director Server Callbacks
         directorServer.onSetText = { [weak self] newText in
-            DispatchQueue.main.async {
-                self?.handleDirectorSetText(newText)
-            }
+            self?.handleDirectorSetText(newText)
         }
 
         directorServer.onUpdateText = { [weak self] newText, charCount in
-            DispatchQueue.main.async {
-                self?.handleDirectorUpdateText(newText, charCount: charCount)
-            }
+            self?.handleDirectorUpdateText(newText, charCount: charCount)
         }
 
         directorServer.onStop = { [weak self] in
-            DispatchQueue.main.async {
-                self?.stop()
-            }
+            self?.stop()
         }
 
         directorServer.onNextPage = { [weak self] in
-            DispatchQueue.main.async {
-                self?.nextPage()
-            }
+            self?.nextPage()
         }
 
         directorServer.onPrevPage = { [weak self] in
-            DispatchQueue.main.async {
-                self?.previousPage()
-            }
+            self?.previousPage()
         }
     }
 
