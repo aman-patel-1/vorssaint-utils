@@ -17,6 +17,7 @@ private func triggerHaptic() {
 private struct TeleprompterPreviewSettingsSnapshot: Equatable {
     let values: [String]
 
+    @MainActor
     init(_ service: TeleprompterService) {
         values = [
             service.fontFamily.rawValue, service.fontSize.rawValue,
