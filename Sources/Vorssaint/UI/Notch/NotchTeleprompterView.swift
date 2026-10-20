@@ -75,6 +75,9 @@ struct NotchTeleprompterView: View {
             }
         }
         .frame(width: size.width, height: size.height, alignment: .top)
+        .notchBand(trailing: {
+            if !service.isRunning || showingPageCards { addPageButton }
+        })
     }
 
     // MARK: - 1. Page Cards Studio View (When stopped or toggled)
@@ -88,12 +91,8 @@ struct NotchTeleprompterView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(service.highlightColor.color)
 
-                    Text("Script Studio")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white)
-
                     Text("\(pagesList.count) \(pagesList.count == 1 ? "page" : "pages")")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white.opacity(0.55))
                 }
 
@@ -135,23 +134,6 @@ struct NotchTeleprompterView: View {
                         .buttonStyle(.plain)
                     }
 
-                    // Add Page Button
-                    Button {
-                        addNewPage()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 10, weight: .bold))
-                            Text("Page")
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 4)
-                        .background(Color.white.opacity(0.14))
-                        .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .help("Add New Page")
                 }
             }
             .padding(.horizontal, 16)
@@ -469,6 +451,30 @@ struct NotchTeleprompterView: View {
     }
 
     // MARK: - Helpers
+
+    /// The add action lives in the island's top row like the timer's Start
+    /// capsule, so the page keeps its own toolbar clear and familiar.
+    private var addPageButton: some View {
+        Button {
+            addNewPage()
+            triggerHaptic()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .semibold))
+                Text("Page")
+                    .font(.system(size: NotchTimerSupport.StartButton.labelSize, weight: .semibold))
+            }
+            .lineLimit(1)
+            .padding(.horizontal, NotchTimerSupport.StartButton.padding)
+            .frame(height: NotchLayout.timerStartHeight)
+            .foregroundStyle(service.highlightColor.color)
+            .background(service.highlightColor.color.opacity(0.18), in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: NotchLayout.timerStartHeight / 2))
+        .help("Add New Page")
+    }
 
     private func previewSnippet(_ text: String) -> String {
         let clean = text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)

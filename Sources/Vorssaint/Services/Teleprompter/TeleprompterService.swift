@@ -516,9 +516,6 @@ final class TeleprompterService: ObservableObject {
         } else if overlayMode == .floating {
             floatingWindowVisible = true
             TeleprompterFloatingWindowController.shared.show()
-        } else if overlayMode == .fullscreen {
-            floatingWindowVisible = true
-            TeleprompterFloatingWindowController.shared.showFullscreen()
         }
     }
 

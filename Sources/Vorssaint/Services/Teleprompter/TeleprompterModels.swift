@@ -46,7 +46,6 @@ enum GuidanceMode: String, CaseIterable, Identifiable {
 enum TeleprompterOverlayMode: String, CaseIterable, Identifiable {
     case notch
     case floating
-    case fullscreen
 
     var id: String { rawValue }
 
@@ -54,7 +53,6 @@ enum TeleprompterOverlayMode: String, CaseIterable, Identifiable {
         switch self {
         case .notch:      return "Dynamic Island"
         case .floating:   return "Floating Window"
-        case .fullscreen: return "Fullscreen"
         }
     }
 
@@ -62,7 +60,6 @@ enum TeleprompterOverlayMode: String, CaseIterable, Identifiable {
         switch self {
         case .notch:      return "capsule"
         case .floating:   return "macwindow"
-        case .fullscreen: return "arrow.up.left.and.arrow.down.right"
         }
     }
 }

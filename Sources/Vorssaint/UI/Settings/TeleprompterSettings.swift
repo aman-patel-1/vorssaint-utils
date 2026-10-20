@@ -411,25 +411,18 @@ struct TeleprompterSettings: View {
                 }
 
                 if service.guidanceMode != .wordTracking {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 12) {
                         Text("Scroll Speed")
                             .frame(width: 110, alignment: .leading)
-                        Spacer()
-                        Text("Slower")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                        Slider(value: $service.scrollSpeed, in: 1.0...6.0)
-                            .frame(minWidth: 160, maxWidth: 220)
+                        Slider(value: $service.scrollSpeed, in: 1.0...6.0, step: 0.1)
                             .onChange(of: service.scrollSpeed) { _, _ in
+                                triggerHaptic()
                                 service.savePreferences()
                             }
-                        Text("Faster")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
                         Text(String(format: "%.1fx", service.scrollSpeed))
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(.secondary)
-                            .frame(width: 36, alignment: .trailing)
+                            .frame(width: 50, alignment: .trailing)
                     }
                 }
 

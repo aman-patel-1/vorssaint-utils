@@ -6,13 +6,7 @@ import SwiftUI
 
 final class TeleprompterPanel: NSPanel {
     override func cancelOperation(_ sender: Any?) {
-        if TeleprompterService.shared.overlayMode == .fullscreen {
-            TeleprompterService.shared.overlayMode = .floating
-            TeleprompterService.shared.savePreferences()
-            TeleprompterFloatingWindowController.shared.show()
-        } else {
-            super.cancelOperation(sender)
-        }
+        super.cancelOperation(sender)
     }
 }
 
@@ -56,17 +50,6 @@ final class TeleprompterFloatingWindowController: NSWindowController {
         }
         panel.sharingType = TeleprompterService.shared.hideFromScreenShare ? .none : .readOnly
         panel.level = .floating
-        panel.orderFrontRegardless()
-    }
-
-    func showFullscreen(screen: NSScreen? = nil) {
-        guard let panel = window as? NSPanel else { return }
-        let targetScreen = screen ?? NSScreen.main ?? NSScreen.screens.first
-        if let frame = targetScreen?.frame {
-            panel.setFrame(frame, display: true)
-        }
-        panel.sharingType = TeleprompterService.shared.hideFromScreenShare ? .none : .readOnly
-        panel.level = .screenSaver
         panel.orderFrontRegardless()
     }
 
@@ -166,22 +149,14 @@ struct TeleprompterFloatingContentView: View {
                         .frame(height: 14)
                     }
 
-                    Button {
-                        if service.overlayMode == .fullscreen {
-                            service.overlayMode = .floating
-                            service.savePreferences()
-                            TeleprompterFloatingWindowController.shared.show()
-                        } else {
-                            service.stop()
-                        }
-                    } label: {
-                        Image(systemName: service.overlayMode == .fullscreen ? "arrow.down.right.and.arrow.up.left" : "xmark")
+                    Button { service.stop() } label: {
+                        Image(systemName: "xmark")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.white.opacity(0.6))
                             .frame(width: 20, height: 20)
                     }
                     .buttonStyle(.plain)
-                    .help(service.overlayMode == .fullscreen ? "Exit Fullscreen (Esc)" : "Close")
+                    .help("Close")
                 }
                 .padding(.horizontal, 14)
                 .padding(.top, 10)
@@ -216,13 +191,6 @@ struct TeleprompterFloatingContentView: View {
         }
         .onChange(of: service.windowHeight) { _, _ in
             TeleprompterFloatingWindowController.shared.updateFrame()
-        }
-        .onExitCommand {
-            if service.overlayMode == .fullscreen {
-                service.overlayMode = .floating
-                service.savePreferences()
-                TeleprompterFloatingWindowController.shared.show()
-            }
         }
     }
 }
