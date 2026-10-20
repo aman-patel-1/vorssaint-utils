@@ -109,7 +109,7 @@ struct NotchTeleprompterView: View {
 
             // Scrollable List of Pages (Calendar / Agenda Card Style)
             ScrollView(.vertical, showsIndicators: true) {
-                VStack(spacing: 8) {
+                LazyVStack(spacing: 8) {
                     ForEach(pagesList.indices, id: \.self) { idx in
                         pageCard(index: idx, content: pagesList[idx])
                     }
@@ -402,10 +402,7 @@ struct NotchTeleprompterView: View {
             .contentShape(Capsule())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: NotchLayout.timerStartHeight / 2))
-        .disabled(pagesList.count >= TeleprompterService.maximumPageCount)
-        .help(pagesList.count >= TeleprompterService.maximumPageCount
-              ? "Maximum of \(TeleprompterService.maximumPageCount) pages reached"
-              : "Add New Page")
+        .help("Add New Page")
     }
 
     /// The elapsed reading takes the page action's top-row position while
@@ -440,7 +437,6 @@ struct NotchTeleprompterView: View {
     }
 
     private func addNewPage() {
-        guard pagesList.count < TeleprompterService.maximumPageCount else { return }
         if service.pages.isEmpty {
             service.pages = [service.text]
         }

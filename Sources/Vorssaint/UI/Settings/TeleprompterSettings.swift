@@ -296,9 +296,15 @@ struct TeleprompterSettings: View {
 
             // MARK: - 2. Script Studio & Notes Section
             Section {
-                ForEach(pagesList.indices, id: \.self) { idx in
-                    pageRow(index: idx)
+                ScrollView(.vertical, showsIndicators: pagesList.count > 7) {
+                    LazyVStack(spacing: 4) {
+                        ForEach(pagesList.indices, id: \.self) { idx in
+                            pageRow(index: idx)
+                        }
+                    }
+                    .padding(.vertical, 2)
                 }
+                .frame(height: min(CGFloat(pagesList.count) * 36, 252))
 
                 HStack(spacing: 10) {
                     Button {
@@ -306,8 +312,6 @@ struct TeleprompterSettings: View {
                     } label: {
                         Label("Add Page", systemImage: "plus")
                     }
-                    .disabled(pagesList.count >= TeleprompterService.maximumPageCount)
-                    .help("A teleprompter can contain up to \(TeleprompterService.maximumPageCount) pages.")
 
                     Button {
                         chooseAndImportPPTX()
@@ -344,11 +348,6 @@ struct TeleprompterSettings: View {
                             .font(.caption)
                             .onChange(of: service.autoNextPage) { _, _ in service.savePreferences() }
                     }
-                }
-                if pagesList.count >= TeleprompterService.maximumPageCount {
-                    Text("Maximum \(TeleprompterService.maximumPageCount) pages")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
             }
             .disabled(!teleprompterEnabled)
@@ -761,33 +760,19 @@ struct TeleprompterSettings: View {
     // MARK: - Page Row Component
 
     private func pageRow(index: Int) -> some View {
-        let isSelected = index == service.currentPageIndex
         let pageContent = (index < pagesList.count) ? pagesList[index] : ""
         let snippet = previewSnippet(pageContent)
 
         return HStack(spacing: 12) {
-            Button {
-                service.jumpToPage(index: index)
-                triggerHaptic()
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 14))
-                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Page \(index + 1)")
-                            .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
-                            .foregroundStyle(isSelected ? Color.primary : Color.secondary)
-
-                        Text(snippet.isEmpty ? "Empty page" : snippet)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Page \(index + 1)")
+                    .font(.system(size: 13, weight: .medium))
+                Text(snippet.isEmpty ? "Empty page" : snippet)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer()
 
@@ -796,7 +781,7 @@ struct TeleprompterSettings: View {
                 onDuplicate: { duplicatePage(at: index) },
                 onDelete: { pageToDelete = index },
                 canDelete: pagesList.count > 1,
-                canDuplicate: pagesList.count < TeleprompterService.maximumPageCount
+                canDuplicate: true
             )
             .frame(width: 18, height: 18)
         }
@@ -804,10 +789,6 @@ struct TeleprompterSettings: View {
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {
             openPageEditor(index: index)
-        }
-        .onTapGesture(count: 1) {
-            service.jumpToPage(index: index)
-            triggerHaptic()
         }
     }
 
@@ -852,7 +833,6 @@ struct TeleprompterSettings: View {
     }
 
     private func addNewPage() {
-        guard pagesList.count < TeleprompterService.maximumPageCount else { return }
         service.addPage()
         let newIdx = max(0, service.pages.count - 1)
         editingPageIndex = newIdx
@@ -895,7 +875,7 @@ struct TeleprompterSettings: View {
     }
 
     private func duplicatePage(at index: Int) {
-        guard index < pagesList.count, pagesList.count < TeleprompterService.maximumPageCount else { return }
+        guard index < pagesList.count else { return }
         if service.pages.isEmpty {
             service.pages = [service.text]
         }
@@ -1011,13 +991,8 @@ struct TeleprompterSettings: View {
 
         if panel.runModal() == .OK, let url = panel.url {
             do {
-                let omittedPages = try service.importPPTX(url: url)
+                try service.importPPTX(url: url)
                 triggerHaptic()
-                if omittedPages > 0 {
-                    importAlertTitle = "Import Notice"
-                    importErrorMessage = "Only the first \(TeleprompterService.maximumPageCount) pages were imported to keep the Notch and Settings layouts readable. \(omittedPages) pages were skipped."
-                    showingImportError = true
-                }
             } catch {
                 importAlertTitle = "Import Failed"
                 importErrorMessage = error.localizedDescription
