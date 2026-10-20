@@ -387,9 +387,9 @@ struct NotchTeleprompterView: View {
     private var liveWaveform: some View {
         let previewIsActive = service.isPreviewingInNotch && !service.isRunning
             && previewPlayback.isSpeaking
-        TeleprompterWaveformView(levels: previewIsActive ? [] : recognizer.audioLevels,
-                                 color: service.highlightColor.color,
-                                 isActive: previewIsActive || recognizer.isStarting || recognizer.isListening)
+        return TeleprompterWaveformView(levels: previewIsActive ? [] : recognizer.audioLevels,
+                                        color: service.highlightColor.color,
+                                        isActive: previewIsActive || recognizer.isStarting || recognizer.isListening)
             .frame(width: 58, height: 18)
             .accessibilityLabel(FeatureStrings.teleprompter(l10n.language).listening)
     }
