@@ -31,7 +31,13 @@ struct NotchTeleprompterView: View {
         }
         .frame(width: size.width, height: size.height, alignment: .top)
         .notchBand(leading: {
-            NotchIconButton(symbol: "arrow.uturn.backward", title: l10n.s.obBack, action: NotchService.shared.toggleSections)
+            HStack(spacing: 7) {
+                NotchIconButton(symbol: "arrow.uturn.backward", title: l10n.s.obBack, action: NotchService.shared.toggleSections)
+                Text("Script Pages")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.65))
+                    .lineLimit(1)
+            }
         }, trailing: {
             HStack(spacing: 6) {
                 if service.isRunning && service.showElapsedTime { elapsedTimeBadge }
@@ -78,16 +84,10 @@ struct NotchTeleprompterView: View {
 
     private var pageCardsStudioView: some View {
         VStack(spacing: 8) {
-            // Header Bar
-            HStack(spacing: 10) {
-                Text("Script Pages")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.55))
-
-                Spacer()
-
-                // If currently running in background, allow jumping back to live view.
-                if service.isRunning {
+            // If currently running in background, allow jumping back to live view.
+            if service.isRunning {
+                HStack {
+                    Spacer()
                     Button {
                         showingPageCards = false
                     } label: {
@@ -103,10 +103,9 @@ struct NotchTeleprompterView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 6)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 6)
-            .padding(.bottom, 2)
 
             // Scrollable List of Pages (Calendar / Agenda Card Style)
             ScrollView(.vertical, showsIndicators: true) {
@@ -383,7 +382,9 @@ struct NotchTeleprompterView: View {
     /// capsule, so the page keeps its own toolbar clear and familiar.
     private var addPageButton: some View {
         Button {
-            addNewPage()
+            service.pendingAddPageInSettings = true
+            SettingsRouter.shared.request(AppFeature.teleprompter.settingsDestination)
+            (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
             triggerHaptic()
         } label: {
             HStack(spacing: 5) {

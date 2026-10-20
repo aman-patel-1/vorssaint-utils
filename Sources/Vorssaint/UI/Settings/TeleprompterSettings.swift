@@ -714,6 +714,10 @@ struct TeleprompterSettings: View {
         .formStyle(.grouped)
         .onAppear {
             inputDevices = AudioInputDevice.allInputDevices()
+            openRequestedNewPageIfNeeded()
+        }
+        .onChange(of: service.pendingAddPageInSettings) { _, requested in
+            if requested { openRequestedNewPageIfNeeded() }
         }
         .confirmationDialog(
             "Delete Page \((pageToDelete ?? 0) + 1)?",
@@ -859,6 +863,15 @@ struct TeleprompterSettings: View {
                 closePageEditor(save: true, newText: newText)
             }
         )
+    }
+
+    private func openRequestedNewPageIfNeeded() {
+        guard service.pendingAddPageInSettings else { return }
+        service.pendingAddPageInSettings = false
+        // Let Settings become the key window before presenting its page editor sheet.
+        DispatchQueue.main.async {
+            addNewPage()
+        }
     }
 
     private func duplicatePage(at index: Int) {

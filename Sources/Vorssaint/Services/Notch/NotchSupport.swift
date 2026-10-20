@@ -2262,6 +2262,7 @@ struct NotchGeometry: Equatable {
     private let capsuleWidthFit: CGFloat
     var compactSideRoom: CGFloat?
     var quickAccessBottomInset: CGFloat = 0
+    var teleprompterIsRunning: Bool = false
     var requiresFullWidthHeader = false
     /// What the open page puts in the island's top row.
     var pageTop: NotchPageTop = .row
@@ -2783,9 +2784,12 @@ struct NotchGeometry: Equatable {
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             case .teleprompter:
+                let compactHeight = NotchLayout.timer(mode: .timer, hasSession: true, height: budget)
                 let h = UserDefaults.standard.double(forKey: DefaultsKey.teleprompterHeight)
-                let prompterHeight = h > 0 ? CGFloat(h) : 220.0
-                contentHeight = max(budget, prompterHeight)
+                let runningHeight = h > 0 ? CGFloat(h) : 180
+                contentHeight = min(budget, teleprompterIsRunning
+                                    ? max(compactHeight, runningHeight)
+                                    : compactHeight)
             // Lists and previews fill the chosen content budget.
             case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch:
                 contentHeight = budget
@@ -2793,9 +2797,11 @@ struct NotchGeometry: Equatable {
         }
         var preferredHeight = headerTopInset + headerChromeHeight + contentHeight
         if module == .teleprompter {
-            let h = UserDefaults.standard.double(forKey: DefaultsKey.teleprompterHeight)
-            let prompterHeight = h > 0 ? CGFloat(h) : 220.0
-            preferredHeight = max(preferredHeight, headerTopInset + headerChromeHeight + prompterHeight)
+            if teleprompterIsRunning {
+                let h = UserDefaults.standard.double(forKey: DefaultsKey.teleprompterHeight)
+                let runningHeight = h > 0 ? CGFloat(h) : 180
+                preferredHeight = max(preferredHeight, headerTopInset + headerChromeHeight + runningHeight)
+            }
         } else if layout == .custom {
             preferredHeight = min(preferredHeight, customHeight)
         }

@@ -498,7 +498,10 @@ struct NotchView: View {
             // One shelf tile and its vertical insets; the actions are in the top row.
             size.height = max(size.height, 88 + 8)
         case .teleprompter:
-            size.height = max(size.height, max(240, CGFloat(teleprompter.windowHeight)))
+            let compactHeight = NotchLayout.timer(mode: .timer, hasSession: true, height: size.height)
+            size.height = max(size.height, teleprompter.isRunning
+                              ? max(compactHeight, CGFloat(teleprompter.windowHeight))
+                              : compactHeight)
         default: break
         }
         return size
