@@ -245,7 +245,7 @@ Vorssaint is free and will stay that way. If it earned its place in your menu ba
 ## Acknowledgements
 
 - App icon designed by [@divisionseven](https://github.com/divisionseven)
-- Teleprompter integration and port by [@aman-patel-1](https://github.com/aman-patel-1), adapted from [Textream](https://github.com/f/textream) by [@f](https://github.com/f) (Fatih Kadir Akın) and [@semihkislar](https://github.com/semihkislar) (Semih Kislar), MIT License
+- Teleprompter integration and port by [@aman-patel-1](https://github.com/aman-patel-1), adapted from [Textream](https://github.com/f/textream) by [@f](https://github.com/f) (Fatih Kadir Akın) and [@semihkislar](https://github.com/semihkislar) (Semih Kislar); see the [MIT license notice](THIRD_PARTY_NOTICES.md#textream)
 - OpenDyslexic font family designed by [Abbie Gonzalez](https://opendyslexic.org), SIL Open Font License
 
 ## License
