@@ -2262,7 +2262,6 @@ struct NotchGeometry: Equatable {
     private let capsuleWidthFit: CGFloat
     var compactSideRoom: CGFloat?
     var quickAccessBottomInset: CGFloat = 0
-    var teleprompterIsRunning: Bool = false
     var requiresFullWidthHeader = false
     /// What the open page puts in the island's top row.
     var pageTop: NotchPageTop = .row
@@ -2787,7 +2786,8 @@ struct NotchGeometry: Equatable {
                 let compactHeight = NotchLayout.timer(mode: .timer, hasSession: true, height: budget)
                 let h = UserDefaults.standard.double(forKey: DefaultsKey.teleprompterHeight)
                 let runningHeight = h > 0 ? CGFloat(h) : 180
-                contentHeight = min(budget, teleprompterIsRunning
+                let isRunning = UserDefaults.standard.bool(forKey: DefaultsKey.teleprompterIsRunning)
+                contentHeight = min(budget, isRunning
                                     ? max(compactHeight, runningHeight)
                                     : compactHeight)
             // Lists and previews fill the chosen content budget.
@@ -2796,12 +2796,10 @@ struct NotchGeometry: Equatable {
             }
         }
         var preferredHeight = headerTopInset + headerChromeHeight + contentHeight
-        if module == .teleprompter {
-            if teleprompterIsRunning {
-                let h = UserDefaults.standard.double(forKey: DefaultsKey.teleprompterHeight)
-                let runningHeight = h > 0 ? CGFloat(h) : 180
-                preferredHeight = max(preferredHeight, headerTopInset + headerChromeHeight + runningHeight)
-            }
+        if module == .teleprompter && UserDefaults.standard.bool(forKey: DefaultsKey.teleprompterIsRunning) {
+            let h = UserDefaults.standard.double(forKey: DefaultsKey.teleprompterHeight)
+            let runningHeight = h > 0 ? CGFloat(h) : 180
+            preferredHeight = max(preferredHeight, headerTopInset + headerChromeHeight + runningHeight)
         } else if layout == .custom {
             preferredHeight = min(preferredHeight, customHeight)
         }

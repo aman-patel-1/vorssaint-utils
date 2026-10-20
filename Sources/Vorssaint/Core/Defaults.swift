@@ -232,6 +232,7 @@ enum DefaultsKey {
     static let teleprompterCueBrightness = "teleprompterCueBrightness"
     static let teleprompterWidth = "teleprompterWidth"
     static let teleprompterHeight = "teleprompterHeight"
+    static let teleprompterIsRunning = "teleprompterIsRunning"
     static let teleprompterReadingPosition = "teleprompterReadingPosition"
     static let teleprompterDisplayTargetMode = "teleprompterDisplayTargetMode"
     static let teleprompterShowParagraphDividers = "teleprompterShowParagraphDividers"

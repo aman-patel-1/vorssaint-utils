@@ -877,7 +877,6 @@ final class NotchService: ObservableObject {
     }
     var expandedGeometry: NotchGeometry {
         var result = geometry
-        result.teleprompterIsRunning = TeleprompterService.shared.isRunning
         // Capture editing has a full toolbar whose actions must stay reachable.
         result.requiresFullWidthHeader = selected == .captures && captureActions != nil
             && !showingSections && !showingAppPanel && selectedMetric == nil

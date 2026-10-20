@@ -13,7 +13,9 @@ final class TeleprompterService: ObservableObject {
     static let shared = TeleprompterService()
     static let maximumPageCount = 12
 
-    @Published var isRunning: Bool = false
+    @Published var isRunning: Bool = false {
+        didSet { UserDefaults.standard.set(isRunning, forKey: DefaultsKey.teleprompterIsRunning) }
+    }
     @Published var isPaused: Bool = false
     @Published var text: String = "Welcome to Vorssaint Teleprompter.\n\nRead your script naturally while on camera. Words highlight in real time as you speak, powered by 100% on-device speech recognition."
     @Published var pages: [String] = []
@@ -130,6 +132,7 @@ final class TeleprompterService: ObservableObject {
     }
 
     private init() {
+        UserDefaults.standard.set(false, forKey: DefaultsKey.teleprompterIsRunning)
         loadPreferences()
         setupObservers()
         syncWithPreferences()
