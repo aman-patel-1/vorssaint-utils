@@ -506,6 +506,15 @@ struct TeleprompterSettings: View {
                         .frame(width: 50, alignment: .trailing)
                 }
 
+                Toggle("Show paragraph dividers", isOn: $service.showParagraphDividers)
+                    .onChange(of: service.showParagraphDividers) { _, _ in service.savePreferences() }
+
+                Toggle("Show last spoken word", isOn: $service.showLastSpokenWords)
+                    .onChange(of: service.showLastSpokenWords) { _, _ in service.savePreferences() }
+
+                Toggle("Show elapsed time", isOn: $service.showElapsedTime)
+                    .onChange(of: service.showElapsedTime) { _, _ in service.savePreferences() }
+
             } header: {
                 Text("Appearance")
             }
@@ -578,12 +587,6 @@ struct TeleprompterSettings: View {
 
             // MARK: - 5. Controls Section
             Section {
-                Toggle("Show paragraph dividers", isOn: $service.showParagraphDividers)
-                    .onChange(of: service.showParagraphDividers) { _, _ in service.savePreferences() }
-
-                Toggle("Show last spoken word", isOn: $service.showLastSpokenWords)
-                    .onChange(of: service.showLastSpokenWords) { _, _ in service.savePreferences() }
-
                 Toggle(isOn: $service.keepScreenAwake) {
                     HStack(spacing: 4) {
                         Text("Keep screen awake while teleprompter is active")
@@ -608,9 +611,6 @@ struct TeleprompterSettings: View {
 
                 Toggle("Focus Notch", isOn: $service.focusNotchMode)
                     .onChange(of: service.focusNotchMode) { _, _ in service.savePreferences() }
-
-                Toggle("Show elapsed time", isOn: $service.showElapsedTime)
-                    .onChange(of: service.showElapsedTime) { _, _ in service.savePreferences() }
             } header: {
                 Text("Controls")
             }
