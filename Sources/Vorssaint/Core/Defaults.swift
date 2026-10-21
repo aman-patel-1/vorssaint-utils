@@ -236,6 +236,7 @@ enum DefaultsKey {
     static let teleprompterShowParagraphDividers = "teleprompterShowParagraphDividers"
     static let teleprompterShowLastSpokenWords = "teleprompterShowLastSpokenWords"
     static let teleprompterKeepScreenAwake = "teleprompterKeepScreenAwake"
+    static let teleprompterHideFromScreenSharing = "teleprompterHideFromScreenSharing"
     static let teleprompterFocusNotch = "teleprompterFocusNotch"
     static let teleprompterShowElapsedTime = "teleprompterShowElapsedTime"
     static let teleprompterAutoNextPage = "teleprompterAutoNextPage"
@@ -2012,6 +2013,7 @@ enum Defaults {
         DefaultsKey.teleprompterShowParagraphDividers: false,
         DefaultsKey.teleprompterShowLastSpokenWords: true,
         DefaultsKey.teleprompterKeepScreenAwake: true,
+        DefaultsKey.teleprompterHideFromScreenSharing: true,
         DefaultsKey.teleprompterFocusNotch: true,
         DefaultsKey.teleprompterShowElapsedTime: true,
         DefaultsKey.teleprompterAutoNextPage: false,

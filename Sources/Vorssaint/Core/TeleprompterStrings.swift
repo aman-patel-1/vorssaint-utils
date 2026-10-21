@@ -25,6 +25,8 @@ public struct TeleprompterStrings {
     public let importNotesDesc: String
     public let remoteServer: String
     public let remoteServerDesc: String
+    public let hideFromScreenSharing: String
+    public let hideFromScreenSharingDesc: String
     public let scanQRCode: String
     public let start: String
     public let pause: String
@@ -63,6 +65,8 @@ public struct TeleprompterStrings {
         importNotesDesc: "Extracts presenter notes slide-by-slide from a PowerPoint presentation file.",
         remoteServer: "Remote Prompter Server",
         remoteServerDesc: "Stream script and control prompter wirelessly from mobile browsers or tablets on your local network.",
+        hideFromScreenSharing: "Hide from screen sharing",
+        hideFromScreenSharingDesc: "Exclude the teleprompter from screen sharing and screen capture while it is open.",
         scanQRCode: "Scan with your phone or tablet to open:",
         start: "Start Prompter",
         pause: "Pause",
@@ -102,6 +106,8 @@ public struct TeleprompterStrings {
         importNotesDesc: "PowerPoint sunum dosyasından slayt notlarını ayıklar.",
         remoteServer: "Uzaktan Prompter Sunucusu",
         remoteServerDesc: "Yerel ağınızdaki telefon veya tablet tarayıcısından kablosuz prompter yayını yapın.",
+        hideFromScreenSharing: "Ekran paylaşımında gizle",
+        hideFromScreenSharingDesc: "Teleprompter açıkken ekran paylaşımında ve ekran yakalamada görünmesini engeller.",
         scanQRCode: "Telefonunuzla taratarak açın:",
         start: "Başlat",
         pause: "Duraklat",

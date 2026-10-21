@@ -581,6 +581,14 @@ struct TeleprompterSettings: View {
                 }
                 .onChange(of: service.keepScreenAwake) { _, _ in service.savePreferences() }
 
+                Toggle(isOn: $service.hideFromScreenSharing) {
+                    HStack(spacing: 4) {
+                        Text(strings.hideFromScreenSharing)
+                        InfoTip(text: strings.hideFromScreenSharingDesc)
+                    }
+                }
+                .onChange(of: service.hideFromScreenSharing) { _, _ in service.savePreferences() }
+
                 Toggle("Focus Notch", isOn: $service.focusNotchMode)
                     .onChange(of: service.focusNotchMode) { _, _ in service.savePreferences() }
 

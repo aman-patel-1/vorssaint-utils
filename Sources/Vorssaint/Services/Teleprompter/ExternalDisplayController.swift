@@ -98,6 +98,7 @@ final class ExternalDisplayController {
         newPanel.isOpaque = true
         newPanel.backgroundColor = .black
         newPanel.hasShadow = false
+        newPanel.sharingType = service.isRunning && service.hideFromScreenSharing ? .none : .readOnly
         newPanel.level = .floating
         newPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         newPanel.contentView = hostingView
@@ -119,5 +120,9 @@ final class ExternalDisplayController {
         panel?.orderOut(nil)
         panel = nil
         cancellables.removeAll()
+    }
+
+    func updateScreenCaptureVisibility(isHidden: Bool) {
+        panel?.sharingType = isHidden ? .none : .readOnly
     }
 }

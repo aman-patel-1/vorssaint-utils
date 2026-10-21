@@ -86,6 +86,13 @@ final class TeleprompterService: ObservableObject {
     @Published var showParagraphDividers: Bool = false
     @Published var showLastSpokenWords: Bool = true
     @Published var keepScreenAwake: Bool = true
+    @Published var hideFromScreenSharing: Bool = true {
+        didSet {
+            guard oldValue != hideFromScreenSharing else { return }
+            externalDisplayController.updateScreenCaptureVisibility(
+                isHidden: isRunning && hideFromScreenSharing)
+        }
+    }
     @Published var focusNotchMode: Bool = true
     @Published var showElapsedTime: Bool = true
     @Published var autoNextPage: Bool = false
@@ -266,6 +273,9 @@ final class TeleprompterService: ObservableObject {
         if defaults.object(forKey: DefaultsKey.teleprompterKeepScreenAwake) != nil {
             keepScreenAwake = defaults.bool(forKey: DefaultsKey.teleprompterKeepScreenAwake)
         }
+        if defaults.object(forKey: DefaultsKey.teleprompterHideFromScreenSharing) != nil {
+            hideFromScreenSharing = defaults.bool(forKey: DefaultsKey.teleprompterHideFromScreenSharing)
+        }
         if defaults.object(forKey: DefaultsKey.teleprompterFocusNotch) != nil {
             focusNotchMode = defaults.bool(forKey: DefaultsKey.teleprompterFocusNotch)
         }
@@ -316,6 +326,7 @@ final class TeleprompterService: ObservableObject {
         defaults.set(showParagraphDividers, forKey: DefaultsKey.teleprompterShowParagraphDividers)
         defaults.set(showLastSpokenWords, forKey: DefaultsKey.teleprompterShowLastSpokenWords)
         defaults.set(keepScreenAwake, forKey: DefaultsKey.teleprompterKeepScreenAwake)
+        defaults.set(hideFromScreenSharing, forKey: DefaultsKey.teleprompterHideFromScreenSharing)
         defaults.set(focusNotchMode, forKey: DefaultsKey.teleprompterFocusNotch)
         defaults.set(showElapsedTime, forKey: DefaultsKey.teleprompterShowElapsedTime)
         defaults.set(autoNextPage, forKey: DefaultsKey.teleprompterAutoNextPage)

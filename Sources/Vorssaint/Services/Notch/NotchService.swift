@@ -181,6 +181,7 @@ final class NotchService: ObservableObject {
     private var teleprompterActivityIsRunning = false
     private var teleprompterFocusNotchEnabled = true
     private var teleprompterPreviewIsActive = false
+    private var teleprompterHideFromScreenSharing = true
     private var teleprompterSubscriptionGeneration: UInt64 = 0
     private var eventMonitors: [Any] = []
     private var screenEdgeClickMonitors: [Any] = []
@@ -2643,6 +2644,7 @@ final class NotchService: ObservableObject {
     }
 
     func refreshPresentation(animated: Bool = true, transitionContent: NotchContentTransition = .none) {
+        applyScreenCaptureVisibility()
         // A notice with a new reading, or the music strip naming its song,
         // fits its new width in place.
         let fitsInPlace = noticeFitsInPlace && notice != nil && !noticeExpanded
@@ -3135,7 +3137,7 @@ final class NotchService: ObservableObject {
                 mirror.model.timerOutline = activity == .timer
                 mirror.host.setOutline(enabled: outline, color: activity == .timer ? .systemOrange : .white)
             }
-            let sharing: NSWindow.SharingType = NotchSupport.showsInCaptures() ? .readOnly : .none
+            let sharing = screenCaptureSharingType
             if mirror.host.panel.sharingType != sharing { mirror.host.panel.sharingType = sharing }
             let revealing = !mirror.model.shown
             let previous = mirror.model.activity
@@ -3496,8 +3498,23 @@ final class NotchService: ObservableObject {
                 },
                 update: { [weak self] in self?.updateFileDrop(at: $0) == true }))
         } else { windowHost?.setFileDropActions(nil) }
-        panel?.sharingType = NotchSupport.showsInCaptures() ? .readOnly : .none
+        panel?.sharingType = screenCaptureSharingType
         updateFullscreenVisibility(displayID: screen.notchDisplayID)
+    }
+
+    private var screenCaptureSharingType: NSWindow.SharingType {
+        let protectTeleprompter = selected == .teleprompter
+            && teleprompterHideFromScreenSharing
+            && (teleprompterActivityIsRunning || teleprompterPreviewIsActive)
+        return NotchSupport.showsInCaptures() && !protectTeleprompter ? .readOnly : .none
+    }
+
+    private func applyScreenCaptureVisibility() {
+        let sharing = screenCaptureSharingType
+        if panel?.sharingType != sharing { panel?.sharingType = sharing }
+        for mirror in mirrors.values where mirror.host.panel.sharingType != sharing {
+            mirror.host.panel.sharingType = sharing
+        }
     }
 
     /// The island's geometry on a display, before its menus are measured.
@@ -3929,15 +3946,19 @@ final class NotchService: ObservableObject {
                 self.teleprompterActivityIsRunning = prompter.isRunning
                 self.teleprompterFocusNotchEnabled = prompter.focusNotchMode
                 self.teleprompterPreviewIsActive = prompter.isPreviewingInNotch
-                prompter.$isRunning.combineLatest(prompter.$focusNotchMode)
+                self.teleprompterHideFromScreenSharing = prompter.hideFromScreenSharing
+                prompter.$isRunning.combineLatest(prompter.$focusNotchMode,
+                                                   prompter.$hideFromScreenSharing)
                     .removeDuplicates { previous, current in
                         previous.0 == current.0 && previous.1 == current.1
+                            && previous.2 == current.2
                     }
                     .receive(on: DispatchQueue.main)
-                    .sink { [weak self] isRunning, focusNotchEnabled in
+                    .sink { [weak self] isRunning, focusNotchEnabled, hideFromScreenSharing in
                         guard let self else { return }
                         self.teleprompterActivityIsRunning = isRunning
                         self.teleprompterFocusNotchEnabled = focusNotchEnabled
+                        self.teleprompterHideFromScreenSharing = hideFromScreenSharing
                         self.objectWillChange.send()
                         self.refreshPresentation()
                     }.store(in: &self.subscriptions)
