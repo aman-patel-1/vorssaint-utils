@@ -107,7 +107,7 @@ public struct TeleprompterStrings {
         remoteServer: "Uzaktan Prompter Sunucusu",
         remoteServerDesc: "Yerel ağınızdaki telefon veya tablet tarayıcısından kablosuz prompter yayını yapın.",
         hideFromScreenSharing: "Ekran paylaşımında gizle",
-        hideFromScreenSharingDesc: "Teleprompter çalışırken ekran paylaşımında ve yakalamalarda görünmesini engeller. Hazır durumundaki Notch'u da gizlemek için Dynamic Island → Behavior → Privacy bölümündeki Show in screenshots and videos seçeneğini kapatın.",
+        hideFromScreenSharingDesc: "Teleprompter çalışırken ekran paylaşımında ve yakalamalarda görünmesini engeller. Hazır durumundaki Notch’u da gizlemek için Dynamic Island → Behavior → Privacy bölümündeki Show in screenshots and videos seçeneğini kapatın.",
         scanQRCode: "Telefonunuzla taratarak açın:",
         start: "Başlat",
         pause: "Duraklat",
