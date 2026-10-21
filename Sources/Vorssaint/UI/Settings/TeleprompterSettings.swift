@@ -35,6 +35,8 @@ private struct TeleprompterPreviewSettingsSnapshot: Equatable {
 
 struct InfoTip: View {
     let text: String
+    var actionTitle: String? = nil
+    var action: (() -> Void)? = nil
     @State private var isShowing = false
 
     var body: some View {
@@ -48,13 +50,22 @@ struct InfoTip: View {
         }
         .buttonStyle(.plain)
         .popover(isPresented: $isShowing, arrowEdge: .trailing) {
-            Text(text)
-                .font(.system(size: 11))
-                .lineSpacing(2)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(width: 250)
-                .padding(12)
+            VStack(alignment: .leading, spacing: 10) {
+                Text(text)
+                    .font(.system(size: 11))
+                    .lineSpacing(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let actionTitle, let action {
+                    Button(actionTitle) {
+                        isShowing = false
+                        action()
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                }
+            }
+            .frame(width: 250, alignment: .leading)
+            .padding(12)
         }
     }
 }
@@ -584,7 +595,13 @@ struct TeleprompterSettings: View {
                 Toggle(isOn: $service.hideFromScreenSharing) {
                     HStack(spacing: 4) {
                         Text(strings.hideFromScreenSharing)
-                        InfoTip(text: strings.hideFromScreenSharingDesc)
+                        let notchEditor = FeatureStrings.notchEditor(l10n.language)
+                        InfoTip(text: strings.hideFromScreenSharingDesc,
+                                actionTitle: "\(notchEditor.behavior) · \(notchEditor.privacy)") {
+                            let router = SettingsRouter.shared
+                            router.request(FeatureSettingsDestination(.notch))
+                            router.notchPrivacySettingsRequested = true
+                        }
                     }
                 }
                 .onChange(of: service.hideFromScreenSharing) { _, _ in service.savePreferences() }

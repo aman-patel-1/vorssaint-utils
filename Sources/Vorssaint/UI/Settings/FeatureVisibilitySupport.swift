@@ -165,6 +165,8 @@ final class SettingsRouter: ObservableObject {
     /// One-shot hint for the Dynamic Island page, so a section of the island
     /// can open its own options. Consumed and cleared on arrival.
     @Published var notchModule: NotchModule?
+    /// One-shot hint to open the Dynamic Island Behavior tab at its Privacy card.
+    @Published var notchPrivacySettingsRequested = false
     /// One-shot hint for the Dynamic Island page to show the companion's tab,
     /// where its settings live. Consumed and cleared on arrival.
     @Published var notchCompanion = false
