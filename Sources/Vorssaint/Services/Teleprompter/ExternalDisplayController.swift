@@ -78,9 +78,10 @@ final class ExternalDisplayController {
 
         let axis = (mode == .mirror) ? mirrorAxis : nil
         let screenFrame = screen.frame
+        let service = TeleprompterService.shared
 
         let content = ExternalDisplayView(
-            service: TeleprompterService.shared,
+            service: service,
             recognizer: speechRecognizer,
             words: words,
             script: script,
