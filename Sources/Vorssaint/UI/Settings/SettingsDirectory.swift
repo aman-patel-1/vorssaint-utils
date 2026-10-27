@@ -277,6 +277,7 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .windowLayout,
                                       title: FeatureStrings.windowLayout(language).title,
                                       icon: "rectangle.3.group",
+                                      keywords: [WindowStageManagerStrings.localized(language).title, "Stage Manager"],
                                       featureKeywords: [
                                         (.windowLayout, [s.dockClickCycleWindows,
                                                          FeatureStrings.windowLayout(language).edgeSnapEnable,
@@ -288,7 +289,9 @@ enum SettingsDirectory {
                                           FeatureStrings.windowMaximizerExclusions(language).listTitle]),
                                       ]),
                 SettingsDirectoryItem(page: .autoQuit, title: s.autoQuitName, icon: "xmark.rectangle",
-                                      keywords: [s.autoQuitEnable]),
+                                      keywords: [s.autoQuitEnable,
+                                                 FeatureStrings.autoQuitDockApps(language).listTitle,
+                                                 FeatureStrings.autoQuitDockApps(language).caption]),
                 SettingsDirectoryItem(page: .quitProtection,
                                       title: quitProtection.name,
                                       icon: "shield.lefthalf.filled",
@@ -451,9 +454,7 @@ enum SettingsDirectory {
                                       keywords: [s.reviewIntro, s.reviewHighlights]),
                 SettingsDirectoryItem(page: .releaseNotes, title: s.tabReleaseNotes, icon: "sparkles"),
                 SettingsDirectoryItem(page: .support, title: s.tabSupport, icon: "heart.fill",
-                                      keywords: [s.donateButton, s.supportIntroStarButton,
-                                                 s.discordIntroJoinButton,
-                                                 s.communityIntroFollowButton]),
+                                      keywords: [s.donateButton, s.supportIntroStarButton]),
             ]),
         ]
     }
